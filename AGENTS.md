@@ -77,7 +77,7 @@ npx fallow health --score --format json --quiet --explain || true
 - `package.json` — npm scripts and dependencies (`astro`, `@astrojs/react`, React 19, `7z-wasm`).
 - `.fallowrc.json` — Fallow entries/ignores and `audit.gate: "new-only"`.
 - `public/7zz.wasm` — required by browser archive extraction. Keep available at `/Show-rank-merger/7zz.wasm`.
-- `.github/workflows/deploy-pages.yml` — GitHub Pages deployment; syncs latest `topbar_rank`, runs `npm run check`, uploads `dist/`.
+- `.github/workflows/deploy-pages.yml` — GitHub Pages deployment; syncs latest `topbar_rank`, runs `npm run check`, publishes `dist/` to the `gh-pages` branch.
 - `src/gamebananaSources.js` — canonical GameBanana file IDs, URLs, expected sizes, SHA-256 hashes, archive members, and required VPK paths.
 - `src/archiveExtractor.js` — browser/Node archive member extraction via `7z-wasm`.
 - `src/sourceValidation.js` — archive identity and required-path validation.
@@ -92,7 +92,7 @@ npx fallow health --score --format json --quiet --explain || true
 - Required runtime: Node compatible with Astro 6 lockfile requirements; use Node >= 22.12.0.
 - Package manager: npm only unless intentionally replacing `package-lock.json`.
 - Static deploy base is `/Show-rank-merger/`; use `import.meta.env.BASE_URL` for runtime asset URLs.
-- Pages workflow runs on pushes, manual dispatch, and every 6 hours so hosted builds can pick up upstream `topbar_rank` changes without changing app code.
+- Pages workflow runs on pushes, manual dispatch, and every 6 hours so hosted builds can pick up upstream `topbar_rank` changes without changing app code. Configure GitHub Pages to deploy from the `gh-pages` branch.
 - Build artifacts (`dist/`, `.astro/`, `.vite/`, `node_modules/`) are ignored and should not be edited.
 - `7z-wasm` is the browser archive extractor. Do not replace it with server-side extraction.
 - No TypeScript, ESLint, Prettier, or Playwright config is present. Follow local style and avoid formatting-only churn.

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This repository is a static Astro + React app for building a local Deadlock `topbar_rank` VPK. Users upload Top Bar Plus v34d and one exact ShowRank 2026-06-08 archive; the browser verifies identity, required VPK contents, generates the bundled `topbar_rank` payload, and downloads the merged VPK. There is no server-side processing.
+This repository is a static Astro + React app for building a local Deadlock `topbar_rank` VPK. Users upload Top Bar Plus v34d and one exact ShowRank 2026-06-08 archive; the browser verifies identity, required VPK contents, fetches latest `topbar_rank` source from GitHub at build time, generates the payload, and downloads the merged VPK. There is no server-side processing.
 
 ## Architecture & Data Flow
 
@@ -14,8 +14,8 @@ This repository is a static Astro + React app for building a local Deadlock `top
   3. `archiveExtractor.js` lazy-loads `7z-wasm`, extracts `pak01_dir.vpk` or `pak89_dir.vpk`.
   4. `vpkReader.js` parses VPKs and `validateRequiredPaths` checks normalized required paths.
 - Merge/build flow:
-  1. `buildMergedRankVpk.js` validates Top Bar and ShowRank, builds variant payload, merges with payload priority, then writes VPK bytes.
-  2. `topbarRankPayload.js` applies exact ShowRank variant patches to bundled source text, validates source invariants, compiles XML/JS/CSS resources, and verifies required output paths.
+  1. `buildMergedRankVpk.js` validates Top Bar and ShowRank, fetches latest `topbar_rank` source from GitHub by default, builds variant payload, merges with payload priority, then writes VPK bytes.
+  2. `topbarRankPayload.js` applies exact ShowRank variant patches to source text, minifies generated JS with Terser, validates source invariants, compiles XML/JS/CSS resources, and verifies required output paths.
   3. `rankMerge.js` normalizes VPK paths and replaces base files with priority payload files on conflicts.
   4. `vpkWriter.js` writes embedded VPK v2 output.
 
@@ -82,6 +82,7 @@ npx fallow health --score --format json --quiet --explain || true
 - `src/archiveExtractor.js` — browser/Node archive member extraction via `7z-wasm`.
 - `src/sourceValidation.js` — archive identity and required-path validation.
 - `src/topbarRankPayload.js` — ShowRank variant generation and Source 2 resource compilation.
+- `src/topbarRankSourceFetch.js`, `src/topbarRankSourceManifest.js` — runtime GitHub source fetcher and canonical `topbar_rank` source path list.
 - `src/buildMergedRankVpk.js` — top-level build orchestration.
 - `src/vpkReader.js` / `src/vpkWriter.js` — VPK parse/write primitives.
 - `src/gitCommitInfo.js`, `src/gitCommitInfoRefresh.js`, `src/pages/commit-info.json.js` — commit-version badge data for the header.
@@ -93,7 +94,7 @@ npx fallow health --score --format json --quiet --explain || true
 - Required runtime: Node compatible with Astro 6 lockfile requirements; use Node >= 22.12.0.
 - Package manager: npm only unless intentionally replacing `package-lock.json`.
 - Static deploy base is `/Show-rank-merger/`; use `import.meta.env.BASE_URL` for runtime asset URLs.
-- Pages workflow runs on pushes, manual dispatch, and every 6 hours so hosted builds can pick up upstream `topbar_rank` changes without changing app code. Configure GitHub Pages to deploy from the `gh-pages` branch.
+- Pages workflow runs on pushes, manual dispatch, and every 6 hours so hosted bundled fallback source can pick up upstream `topbar_rank` changes. Runtime VPK builds also fetch latest upstream source directly from GitHub. Configure GitHub Pages to deploy from the `gh-pages` branch.
 - Build artifacts (`dist/`, `.astro/`, `.vite/`, `node_modules/`) are ignored and should not be edited.
 - `7z-wasm` is the browser archive extractor. Do not replace it with server-side extraction.
 - No TypeScript, ESLint, Prettier, or Playwright config is present. Follow local style and avoid formatting-only churn.

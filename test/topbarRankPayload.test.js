@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { extractPanoramaLayoutSource, extractPanoramaStyleSource, extractTextResource } from "../src/source2ResourceReader.js";
 import { buildTopbarRankPayload, SCOREBOARD_ONLY_CSS, SHOWRANK_VARIANTS, TOPBAR_RANK_REQUIRED_OUTPUT_PATHS } from "../src/topbarRankPayload.js";
+import { TOPBAR_RANK_SOURCE_TEXTS } from "../src/payload/topbarRankSources.generated.js";
 import { normalizeVpkPath } from "../src/rankMerge.js";
 
 function fileByPath(payload, path) {
@@ -55,6 +56,16 @@ test("compiled Panorama styles use CRC-prefixed DATA resources", async () => {
   const cssFile = fileByPath(payload, "panorama/styles/objectives_map.vcss_c");
   assert.equal(resourceVersion(cssFile.bytes), 0);
   assert.match(extractPanoramaStyleSource(cssFile.bytes), /TopbarRank|Objective|objectives/i);
+});
+
+test("buildTopbarRankPayload accepts externally fetched source text", async () => {
+  const sourceTexts = {
+    ...TOPBAR_RANK_SOURCE_TEXTS,
+    "panorama/scripts/topbar_rank_rank_bridge.js": `${TOPBAR_RANK_SOURCE_TEXTS["panorama/scripts/topbar_rank_rank_bridge.js"]}\nvar TOPBAR_RANK_TEST_RUNTIME_SOURCE = 1;\n`
+  };
+  const payload = await buildTopbarRankPayload("showrank_normal", { sourceTexts });
+  const bridge = extractTextResource(fileByPath(payload, "panorama/scripts/topbar_rank_rank_bridge.vjs_c").bytes);
+  assert.match(bridge, /TOPBAR_RANK_TEST_RUNTIME_SOURCE/);
 });
 
 test("showrank_normal keeps normal rank image suffix", async () => {

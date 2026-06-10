@@ -206,7 +206,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
       downloadBytes(result.filename, result.bytes);
       return;
     }
-    setAppState((state) => ({ ...state, isBusy: true, result: { ...EMPTY_RESULT, status: "Building merged VPK…" } }));
+    setAppState((state) => ({ ...state, isBusy: true, result: { ...EMPTY_RESULT, status: "Fetching latest topbar_rank source and building VPK…" } }));
     try {
       const merged = await buildMergedRankVpk({
         topbarArchiveBytes: topbar.bytes,

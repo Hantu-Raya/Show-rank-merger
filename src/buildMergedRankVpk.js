@@ -1,4 +1,5 @@
 import { buildTopbarRankPayload } from "./topbarRankPayload.js";
+import { fetchLatestTopbarRankSourceTexts } from "./topbarRankSourceFetch.js";
 import { mergeFilesWithPriority } from "./rankMerge.js";
 import { parseVpk } from "./vpkReader.js";
 import { validateShowrankArchive, validateTopbarArchive } from "./sourceValidation.js";
@@ -19,14 +20,22 @@ export function outputFilenameForMergedVpk(variantId, baseName = "") {
   return `topbar-rank-${variantId}-${withExtension}`;
 }
 
-export async function buildMergedRankVpk({ baseVpkBytes = null, topbarArchiveBytes, showrankArchiveBytes, baseName = "" }) {
+export async function buildMergedRankVpk({
+  baseVpkBytes = null,
+  topbarArchiveBytes,
+  showrankArchiveBytes,
+  baseName = "",
+  payloadSourceTexts = null,
+  fetchLatestPayloadSource = true
+}) {
   const [topbarValidation, showrankValidation] = await Promise.all([
     validateTopbarArchive({ name: "v34d_top_bar_plus.zip" }, toBytes(topbarArchiveBytes)),
     validateShowrankArchive({ name: "showrank.7z" }, toBytes(showrankArchiveBytes))
   ]);
   const variantId = showrankValidation.variantId;
   const baseParsed = baseVpkBytes ? parseVpk(toBytes(baseVpkBytes)) : { files: [] };
-  const payload = await buildTopbarRankPayload(variantId);
+  const sourceTexts = payloadSourceTexts || (fetchLatestPayloadSource ? await fetchLatestTopbarRankSourceTexts() : null);
+  const payload = await buildTopbarRankPayload(variantId, sourceTexts ? { sourceTexts } : undefined);
   const { files: outputFiles, overwrittenPaths } = mergeFilesWithPriority(baseParsed.files, payload.files);
   const bytes = writeVpk(outputFiles);
 

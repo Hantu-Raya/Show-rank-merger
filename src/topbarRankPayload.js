@@ -52,8 +52,8 @@ export const SHOWRANK_VARIANTS = {
   showrank_minify_ranks_scoreboard_only_topbar: { minifyRanks: true, scoreboardOnly: true }
 };
 
-function cloneSourceTexts() {
-  return Object.fromEntries(Object.entries(TOPBAR_RANK_SOURCE_TEXTS).map(([path, text]) => [path, String(text)]));
+function cloneSourceTexts(sourceTexts = TOPBAR_RANK_SOURCE_TEXTS) {
+  return Object.fromEntries(Object.entries(sourceTexts).map(([path, text]) => [path, String(text)]));
 }
 
 function requireTokens(text, tokens, label) {
@@ -128,11 +128,11 @@ async function compileSource(path, text) {
   throw new Error(`Unsupported topbar_rank source type: ${path}`);
 }
 
-export async function buildTopbarRankPayload(variantId) {
+export async function buildTopbarRankPayload(variantId, { sourceTexts: inputSourceTexts = TOPBAR_RANK_SOURCE_TEXTS } = {}) {
   const variant = SHOWRANK_VARIANTS[variantId];
   if (!variant) throw new Error(`Unknown ShowRank variant: ${variantId}`);
 
-  const sourceTexts = cloneSourceTexts();
+  const sourceTexts = cloneSourceTexts(inputSourceTexts);
   const appliedPatches = [];
 
   if (variant.minifyRanks) {

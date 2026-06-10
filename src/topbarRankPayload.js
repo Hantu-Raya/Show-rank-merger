@@ -106,14 +106,29 @@ function outputPathForSource(path) {
   throw new Error(`Unsupported topbar_rank source type: ${path}`);
 }
 
-function compileSource(path, text) {
+async function minifyScriptSource(path, text) {
+  const { minify } = await import("terser");
+  const result = await minify({ [path]: text }, {
+    compress: false,
+    mangle: false,
+    module: false,
+    toplevel: false,
+    format: {
+      comments: false
+    }
+  });
+  if (!result.code) throw new Error(`Terser did not generate code for ${path}`);
+  return result.code;
+}
+
+async function compileSource(path, text) {
   if (path.endsWith(".xml")) return compilePanoramaLayoutResource(text);
-  if (path.endsWith(".js")) return compileTextResource(text, { resourceVersion: 4 });
+  if (path.endsWith(".js")) return compileTextResource(await minifyScriptSource(path, text), { resourceVersion: 4 });
   if (path.endsWith(".css")) return compilePanoramaStyleResource(text);
   throw new Error(`Unsupported topbar_rank source type: ${path}`);
 }
 
-export function buildTopbarRankPayload(variantId) {
+export async function buildTopbarRankPayload(variantId) {
   const variant = SHOWRANK_VARIANTS[variantId];
   if (!variant) throw new Error(`Unknown ShowRank variant: ${variantId}`);
 
@@ -151,10 +166,10 @@ export function buildTopbarRankPayload(variantId) {
 
   validateSourceInvariants(sourceTexts);
 
-  const files = Object.entries(sourceTexts).map(([path, text]) => ({
+  const files = await Promise.all(Object.entries(sourceTexts).map(async ([path, text]) => ({
     path: outputPathForSource(path),
-    bytes: compileSource(path, text)
-  }));
+    bytes: await compileSource(path, text)
+  })));
 
   const outputPathSet = new Set(files.map((file) => normalizeVpkPath(file.path)));
   const missing = TOPBAR_RANK_REQUIRED_OUTPUT_PATHS.filter((path) => !outputPathSet.has(normalizeVpkPath(path)));

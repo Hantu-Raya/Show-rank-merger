@@ -42,41 +42,43 @@ function resourceVersion(bytes) {
   return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint16(6, true);
 }
 
-test("compiled Panorama scripts use plaintext resource version", () => {
-  const payload = buildTopbarRankPayload("showrank_normal");
+test("compiled Panorama scripts use plaintext minified resources", async () => {
+  const payload = await buildTopbarRankPayload("showrank_normal");
+  const bridge = extractTextResource(fileByPath(payload, "panorama/scripts/topbar_rank_rank_bridge.vjs_c").bytes);
   assert.equal(resourceVersion(fileByPath(payload, "panorama/scripts/topbar_rank_rank_bridge.vjs_c").bytes), 4);
   assert.equal(resourceVersion(fileByPath(payload, "panorama/scripts/topbar_rank_hud.vjs_c").bytes), 4);
+  assert.ok(bridge.length < payload.sourceTexts["panorama/scripts/topbar_rank_rank_bridge.js"].length);
 });
 
-test("compiled Panorama styles use CRC-prefixed DATA resources", () => {
-  const payload = buildTopbarRankPayload("showrank_normal");
+test("compiled Panorama styles use CRC-prefixed DATA resources", async () => {
+  const payload = await buildTopbarRankPayload("showrank_normal");
   const cssFile = fileByPath(payload, "panorama/styles/objectives_map.vcss_c");
   assert.equal(resourceVersion(cssFile.bytes), 0);
   assert.match(extractPanoramaStyleSource(cssFile.bytes), /TopbarRank|Objective|objectives/i);
 });
 
-test("showrank_normal keeps normal rank image suffix", () => {
-  const payload = buildTopbarRankPayload("showrank_normal");
+test("showrank_normal keeps normal rank image suffix", async () => {
+  const payload = await buildTopbarRankPayload("showrank_normal");
   const bridge = extractTextResource(fileByPath(payload, "panorama/scripts/topbar_rank_rank_bridge.vjs_c").bytes);
   assert.match(bridge, /\/rank-predict\/image\?format=webp/);
   assert.doesNotMatch(bridge, /\/rank-predict\/image\?size=small/);
   assertRequiredPaths(payload);
 });
 
-test("showrank_minify_ranks applies minify suffix", () => {
-  const payload = buildTopbarRankPayload("showrank_minify_ranks");
+test("showrank_minify_ranks applies minify suffix", async () => {
+  const payload = await buildTopbarRankPayload("showrank_minify_ranks");
   assertMinify(payload);
   assertRequiredPaths(payload);
 });
 
-test("showrank_scoreboard applies scoreboard-only topbar", () => {
-  const payload = buildTopbarRankPayload("showrank_scoreboard");
+test("showrank_scoreboard applies scoreboard-only topbar", async () => {
+  const payload = await buildTopbarRankPayload("showrank_scoreboard");
   assertScoreboard(payload);
   assertRequiredPaths(payload);
 });
 
-test("combined variant applies minify and scoreboard patches", () => {
-  const payload = buildTopbarRankPayload("showrank_minify_ranks_scoreboard_only_topbar");
+test("combined variant applies minify and scoreboard patches", async () => {
+  const payload = await buildTopbarRankPayload("showrank_minify_ranks_scoreboard_only_topbar");
   assertMinify(payload);
   assertScoreboard(payload);
   assertRequiredPaths(payload);

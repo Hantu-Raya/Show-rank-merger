@@ -26,7 +26,7 @@ export async function buildMergedRankVpk({ baseVpkBytes = null, topbarArchiveByt
   ]);
   const variantId = showrankValidation.variantId;
   const baseParsed = baseVpkBytes ? parseVpk(toBytes(baseVpkBytes)) : { files: [] };
-  const payload = buildTopbarRankPayload(variantId);
+  const payload = await buildTopbarRankPayload(variantId);
   const { files: outputFiles, overwrittenPaths } = mergeFilesWithPriority(baseParsed.files, payload.files);
   const bytes = writeVpk(outputFiles);
 

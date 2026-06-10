@@ -84,6 +84,7 @@ npx fallow health --score --format json --quiet --explain || true
 - `src/topbarRankPayload.js` — ShowRank variant generation and Source 2 resource compilation.
 - `src/buildMergedRankVpk.js` — top-level build orchestration.
 - `src/vpkReader.js` / `src/vpkWriter.js` — VPK parse/write primitives.
+- `src/gitCommitInfo.js`, `src/gitCommitInfoRefresh.js`, `src/pages/commit-info.json.js` — commit-version badge data for the header.
 - `scripts/verify-gamebanana-fixtures.mjs` — manual end-to-end verifier for live GameBanana fixtures and all variants.
 - `scripts/sync-topbar-rank-payload.mjs` — fetches `topbar_rank/panorama/**` from `Hantu-Raya/Deadlock-mods-collection@main` and regenerates `src/payload/topbarRankSources.generated.js`.
 

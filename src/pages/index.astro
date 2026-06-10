@@ -1,6 +1,9 @@
 ---
+import { getGitCommitInfo } from "../gitCommitInfo.js";
 import RankMergerIsland from "../components/RankMergerIsland.jsx";
 import "../styles/global.css";
+
+const gitCommitInfo = getGitCommitInfo();
 ---
 
 <html lang="en">
@@ -16,7 +19,7 @@ import "../styles/global.css";
   </head>
   <body>
     <main class="app-shell">
-      <RankMergerIsland client:load />
+      <RankMergerIsland gitCommitInfo={gitCommitInfo} client:load />
     </main>
   </body>
 </html>

@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { buildMergedRankVpk } from "../buildMergedRankVpk.js";
 import { downloadBytes } from "../download.js";
+import { buildGitCommitInfoRequestUrl, isGitCommitInfoPayload } from "../gitCommitInfoRefresh.js";
 import { SHOWRANK_SOURCES, TOPBAR_REQUIRED_VPK_PATHS, TOPBAR_SOURCE, SHOWRANK_REQUIRED_VPK_PATHS } from "../gamebananaSources.js";
 import { sha256Hex } from "../sha256.js";
 import { validateShowrankArchive, validateTopbarArchive } from "../sourceValidation.js";
@@ -104,14 +105,34 @@ function UploadCard({ title, hint, accept, slot, onFile, children }) {
   );
 }
 
-export default function RankMergerIsland() {
+export default function RankMergerIsland({ gitCommitInfo = null }) {
   const topbarRunRef = useRef(0);
   const showrankRunRef = useRef(0);
   const [appState, setAppState] = useState(initialState);
   const { topbar, showrank, result, isBusy } = appState;
   const [showShowrankLinks, setShowShowrankLinks] = useState(false);
+  const [freshGitCommitInfo, setFreshGitCommitInfo] = useState(gitCommitInfo);
   const helperText = useMemo(() => requiredMessage(topbar, showrank), [topbar, showrank]);
   const canBuild = Boolean(topbar.bytes && showrank.bytes && !topbar.error && !showrank.error && !isBusy);
+  const activeGitCommitInfo = freshGitCommitInfo || gitCommitInfo;
+
+  useEffect(() => {
+    let ignore = false;
+    const refreshCommitInfo = async () => {
+      try {
+        const response = await fetch(buildGitCommitInfoRequestUrl(import.meta.env.BASE_URL), { cache: "no-store" });
+        if (!response.ok) return;
+        const nextGitCommitInfo = await response.json();
+        if (!ignore && isGitCommitInfoPayload(nextGitCommitInfo)) {
+          setFreshGitCommitInfo(nextGitCommitInfo);
+        }
+      } catch {
+        // Keep the statically embedded commit info when the refresh endpoint is unavailable.
+      }
+    };
+    refreshCommitInfo();
+    return () => { ignore = true; };
+  }, []);
 
   async function handleTopbarFile(file, dragging) {
     if (!file) {
@@ -213,8 +234,36 @@ export default function RankMergerIsland() {
   return (
     <div className="rank-merger">
       <header className="header">
-        <h1>Topbar Rank VPK Merger</h1>
-        <p>Merge exact Top Bar Plus and ShowRank GameBanana downloads into a local Deadlock VPK. Files stay on your machine.</p>
+        <div className="header-main">
+          <div className="title-row">
+            <h1>Topbar Rank VPK Merger</h1>
+            {activeGitCommitInfo?.url && activeGitCommitInfo?.shortHash ? (
+              <a
+                className="commit-version-link"
+                href={activeGitCommitInfo.url}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={activeGitCommitInfo.title || `Latest commit ${activeGitCommitInfo.shortHash}`}
+                title={activeGitCommitInfo.title || `Latest commit ${activeGitCommitInfo.shortHash}`}
+              >
+                <span aria-hidden="true">⌁</span>
+                <span>Commit</span>
+                <code>{activeGitCommitInfo.shortHash}</code>
+              </a>
+            ) : null}
+          </div>
+          <p>Merge exact Top Bar Plus and ShowRank GameBanana downloads into a local Deadlock VPK. Files stay on your machine.</p>
+        </div>
+        <div className="header-actions" aria-label="Project support actions">
+          <a className="support-button" href="https://ko-fi.com/hantuaraya" target="_blank" rel="noreferrer" aria-label="Donate on Ko-fi">
+            <span aria-hidden="true">♥</span>
+            <span>Donate</span>
+          </a>
+          <a className="support-button" href="https://github.com/Hantu-Raya/Show-rank-merger" target="_blank" rel="noreferrer" aria-label="Star the repository on GitHub">
+            <span aria-hidden="true">★</span>
+            <span>Star repo</span>
+          </a>
+        </div>
       </header>
 
       <div className="grid">

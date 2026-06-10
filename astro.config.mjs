@@ -3,6 +3,6 @@ import react from "@astrojs/react";
 
 export default defineConfig({
   site: "https://hantu-raya.github.io",
-  base: "/rank-merger/",
+  base: "/Show-rank-merger/",
   integrations: [react()]
 });

@@ -73,10 +73,10 @@ npx fallow health --score --format json --quiet --explain || true
 
 ## Important Files
 
-- `astro.config.mjs` — Astro React integration, `site: "https://hantu-raya.github.io"`, `base: "/rank-merger/"`.
+- `astro.config.mjs` — Astro React integration, `site: "https://hantu-raya.github.io"`, `base: "/Show-rank-merger/"`.
 - `package.json` — npm scripts and dependencies (`astro`, `@astrojs/react`, React 19, `7z-wasm`).
 - `.fallowrc.json` — Fallow entries/ignores and `audit.gate: "new-only"`.
-- `public/7zz.wasm` — required by browser archive extraction. Keep available at `/rank-merger/7zz.wasm`.
+- `public/7zz.wasm` — required by browser archive extraction. Keep available at `/Show-rank-merger/7zz.wasm`.
 - `.github/workflows/deploy-pages.yml` — GitHub Pages deployment; syncs latest `topbar_rank`, runs `npm run check`, uploads `dist/`.
 - `src/gamebananaSources.js` — canonical GameBanana file IDs, URLs, expected sizes, SHA-256 hashes, archive members, and required VPK paths.
 - `src/archiveExtractor.js` — browser/Node archive member extraction via `7z-wasm`.
@@ -91,7 +91,7 @@ npx fallow health --score --format json --quiet --explain || true
 
 - Required runtime: Node compatible with Astro 6 lockfile requirements; use Node >= 22.12.0.
 - Package manager: npm only unless intentionally replacing `package-lock.json`.
-- Static deploy base is `/rank-merger/`; use `import.meta.env.BASE_URL` for runtime asset URLs.
+- Static deploy base is `/Show-rank-merger/`; use `import.meta.env.BASE_URL` for runtime asset URLs.
 - Pages workflow runs on pushes, manual dispatch, and every 6 hours so hosted builds can pick up upstream `topbar_rank` changes without changing app code.
 - Build artifacts (`dist/`, `.astro/`, `.vite/`, `node_modules/`) are ignored and should not be edited.
 - `7z-wasm` is the browser archive extractor. Do not replace it with server-side extraction.
@@ -113,4 +113,4 @@ import assert from "node:assert/strict";
   - `test/topbarRankPayload.test.js` — all four ShowRank variants, exact patches, required output paths.
   - `test/sourceValidation.test.js` — missing required paths and SHA-256 variant detection.
 - Keep network checks out of `npm test`. Use `scripts/verify-gamebanana-fixtures.mjs` only when constants, archive extraction, required paths, or merged output behavior changes.
-- Before handing off non-trivial changes, run `npm run check`. For archive/source identity changes, also run the GameBanana verifier. For UI changes, smoke test upload/build/download behavior in a browser at `http://localhost:4321/rank-merger/` and check narrow mobile width for no horizontal overflow.
+- Before handing off non-trivial changes, run `npm run check`. For archive/source identity changes, also run the GameBanana verifier. For UI changes, smoke test upload/build/download behavior in a browser at `http://localhost:4321/Show-rank-merger/` and check narrow mobile width for no horizontal overflow.

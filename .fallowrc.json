@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": [
+    "src/pages/index.astro",
+    "test/**/*.js",
+    "scripts/*.mjs"
+  ],
+  "ignorePatterns": [
+    "src/payload/topbar_rank/panorama/**"
+  ],
+  "ignoreDependencies": [
+    "@astrojs/react",
+    "astro"
+  ],
+  "ignoreExports": [
+    { "file": "src/source2ResourceReader.js", "exports": ["*"] }
+  ],
+  "duplicates": {
+    "enabled": false
+  },
+  "health": {
+    "maxCyclomatic": 1000,
+    "maxCognitive": 1000,
+    "maxCrap": 1000000,
+    "ignore": [
+      "src/components/RankMergerIsland.jsx",
+      "src/topbarRankPayload.js",
+      "src/vpkReader.js",
+      "src/payload/topbar_rank/panorama/**"
+    ]
+  },
+  "audit": {
+    "gate": "new-only"
+  }
+}

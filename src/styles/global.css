@@ -95,6 +95,9 @@ a { color: var(--text); text-decoration-thickness: 2px; text-underline-offset: 4
   letter-spacing: 0.02em;
   line-height: 1.15;
 }
+.file-input::file-selector-button {
+  margin-inline-end: 14px;
+}
 .download-help a:hover, .support-button:hover, .commit-version-link:hover, button:not(:disabled):hover, .file-input::file-selector-button:hover {
   background: var(--accent);
   color: var(--accent-strong);

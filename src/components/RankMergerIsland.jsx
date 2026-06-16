@@ -84,6 +84,12 @@ function UploadCard({ title, hint, accept, slot, onFile, children }) {
       <label htmlFor={inputId}>
         <span>{title}</span>
         <small>{hint}</small>
+        <span className="file-picker" aria-hidden="true">
+          <span className="file-picker-button">Browse…</span>
+          <span className={`file-picker-name${slot.file ? "" : " muted"}`}>
+            {slot.file ? slot.file.name : "No file chosen"}
+          </span>
+        </span>
         <input
           id={inputId}
           className="file-input"

@@ -26,6 +26,9 @@ async function verifyArchive(label, source, requiredPaths) {
   assert.equal(bytes.byteLength, source.expectedSize, `${label} size mismatch`);
   assert.equal(await sha256Hex(bytes), source.expectedSha256, `${label} SHA-256 mismatch`);
   const vpkBytes = await extractArchiveMember(bytes, source.expectedFileName, source.archiveMember);
+  if (source.expectedVpkSha256) {
+    assert.equal(await sha256Hex(vpkBytes), source.expectedVpkSha256, `${label} embedded VPK SHA-256 mismatch`);
+  }
   const parsed = parseVpk(vpkBytes);
   const required = validateRequiredPaths(parsed.files, requiredPaths);
   assert.equal(required.ok, true, `${label} missing ${required.missing.join(", ")}`);
@@ -33,7 +36,7 @@ async function verifyArchive(label, source, requiredPaths) {
   return { bytes, parsed };
 }
 
-const topbar = await verifyArchive("Top Bar Plus v34d", TOPBAR_SOURCE, TOPBAR_REQUIRED_VPK_PATHS);
+const topbar = await verifyArchive("Top Bar Plus v40", TOPBAR_SOURCE, TOPBAR_REQUIRED_VPK_PATHS);
 const showranks = new Map();
 
 for (const [variantId, source] of Object.entries(SHOWRANK_SOURCES)) {
@@ -51,7 +54,7 @@ for (const [variantId, verified] of showranks) {
   const paths = new Set(parsed.files.map((file) => normalizeVpkPath(file.path)));
   for (const path of [
     "panorama/scripts/topbar_rank_rank_bridge.vjs_c",
-    "panorama/scripts/topbar_rank_hud.vjs_c",
+    "panorama/scripts/topbar_rank_v40_hud.vjs_c",
     ...TOPBAR_RANK_REQUIRED_OUTPUT_PATHS
   ]) {
     assert.equal(paths.has(normalizeVpkPath(path)), true, `${variantId} merged output missing ${path}`);

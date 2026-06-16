@@ -2,6 +2,7 @@ import { buildTopbarRankPayload } from "./topbarRankPayload.js";
 import { fetchLatestTopbarRankSourceTexts } from "./topbarRankSourceFetch.js";
 import { mergeFilesWithPriority } from "./rankMerge.js";
 import { parseVpk } from "./vpkReader.js";
+import { TOPBAR_SOURCE } from "./gamebananaSources.js";
 import { validateShowrankArchive, validateTopbarArchive } from "./sourceValidation.js";
 import { writeVpk } from "./vpkWriter.js";
 
@@ -13,7 +14,7 @@ function toBytes(input) {
   throw new Error("Expected bytes");
 }
 
-export function outputFilenameForMergedVpk(variantId, baseName = "") {
+function outputFilenameForMergedVpk(variantId, baseName = "") {
   if (!baseName) return `topbar-rank-${variantId}_dir.vpk`;
   const clean = String(baseName).replace(/[\\/:*?"<>|]+/g, "_");
   const withExtension = clean.toLowerCase().endsWith(".vpk") ? clean : `${clean}.vpk`;
@@ -29,7 +30,7 @@ export async function buildMergedRankVpk({
   fetchLatestPayloadSource = true
 }) {
   const [topbarValidation, showrankValidation] = await Promise.all([
-    validateTopbarArchive({ name: "v34d_top_bar_plus.zip" }, toBytes(topbarArchiveBytes)),
+    validateTopbarArchive({ name: TOPBAR_SOURCE.expectedFileName }, toBytes(topbarArchiveBytes)),
     validateShowrankArchive({ name: "showrank.7z" }, toBytes(showrankArchiveBytes))
   ]);
   const variantId = showrankValidation.variantId;

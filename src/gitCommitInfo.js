@@ -16,7 +16,7 @@ function tryRunGit(args, cwd = process.cwd()) {
   }
 }
 
-export function buildCommitUrl(remoteUrl, hash) {
+function buildCommitUrl(remoteUrl, hash) {
   const commitHash = String(hash || "").trim();
   if (!commitHash) return null;
 
@@ -62,7 +62,7 @@ function isGitHubMergeSubject(subject) {
   return /^Merge pull request #\d+ from [^\s]+$/i.test(String(subject || "").trim());
 }
 
-export function createGitCommitInfo({ hash, sourceHash = "", remoteUrl, subject = "", body = "" }) {
+function createGitCommitInfo({ hash, sourceHash = "", remoteUrl, subject = "", body = "" }) {
   const commitHash = String(hash || "").trim();
   const branchCommitHash = String(sourceHash || "").trim();
   const displayHash = isGitHubMergeSubject(subject) && branchCommitHash ? branchCommitHash : commitHash;

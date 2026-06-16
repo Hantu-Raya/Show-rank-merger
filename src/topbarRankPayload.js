@@ -29,14 +29,18 @@ export const SCOREBOARD_ONLY_CSS = `.TopbarRankTopBarScoreboardOnly .TopbarRankS
 }`;
 
 export const TOPBAR_RANK_REQUIRED_OUTPUT_PATHS = [
+  "panorama/layout/citadel_hud_hero_shop.vxml_c",
   "panorama/layout/citadel_hud_top_bar.vxml_c",
   "panorama/layout/citadel_hud_top_bar_player.vxml_c",
   "panorama/layout/profile_card.vxml_c",
   "panorama/layout/citadel_ui_context_menu_player.vxml_c",
   "panorama/layout/hud_escape_menu.vxml_c",
   "panorama/layout/players_list_entry.vxml_c",
+  "panorama/scripts/recent_purchases_redux.vjs_c",
+  "panorama/scripts/recent_purchases_redux_data.vjs_c",
   "panorama/scripts/topbar_rank_rank_bridge.vjs_c",
-  "panorama/scripts/topbar_rank_hud.vjs_c",
+  "panorama/scripts/topbar_rank_v40_hud.vjs_c",
+  "panorama/styles/citadel_hud_hero_shop.vcss_c",
   "panorama/styles/topbar_rank_topbar.vcss_c",
   "panorama/styles/objectives_map.vcss_c",
   "panorama/styles/topbar_rank_profile_card.vcss_c",
@@ -77,13 +81,13 @@ function validateSourceInvariants(sourceTexts) {
     "TopbarRankRegisterTopBarPlayer"
   ], "topbar_rank_rank_bridge.js");
 
-  const hud = sourceTexts["panorama/scripts/topbar_rank_hud.js"] || "";
+  const hud = sourceTexts["panorama/scripts/topbar_rank_v40_hud.js"] || "";
   requireTokens(hud, [
-    "TopbarRankHudRootLoaded",
-    "POWERUP_CYCLE_SECONDS = 300",
-    "REJUV_BUFF_DURATION_SECONDS = 240",
+    "ROOT_TICK_SECONDS = 1.0",
+    "INITIAL_URN = 720",
+    "URN_DURATION = 360",
     "TIER_COSTS = { isTier1: 800, isTier2: 1600, isTier3: 3200, isTier4: 6400 }"
-  ], "topbar_rank_hud.js");
+  ], "topbar_rank_v40_hud.js");
 
   for (const path of [
     "panorama/layout/profile_card.xml",
@@ -93,7 +97,7 @@ function validateSourceInvariants(sourceTexts) {
   ]) {
     const text = sourceTexts[path] || "";
     requireTokens(text, ["topbar_rank_rank_bridge.vjs_c"], path);
-    forbidTokens(text, ["topbar_rank_hud.vjs_c"], path);
+    forbidTokens(text, ["topbar_rank_hud.vjs_c", "topbar_rank_v40_hud.vjs_c"], path);
   }
 
   forbidTokens(sourceTexts["panorama/layout/hud_escape_menu.xml"] || "", ["topbar_rank_topbar.vcss_c"], "hud_escape_menu.xml");

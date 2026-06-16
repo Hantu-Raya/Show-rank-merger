@@ -41,7 +41,7 @@ function initialState() {
 
 function requiredMessage(topbar, showrank) {
   if (!topbar.bytes && !showrank.bytes) return "Upload the two GameBanana files to begin.";
-  if (!topbar.bytes) return "Upload v34d_top_bar_plus.zip.";
+  if (!topbar.bytes) return `Upload ${TOPBAR_SOURCE.expectedFileName}.`;
   if (!showrank.bytes) return "Upload one supported ShowRank .7z.";
   if (topbar.error || showrank.error) return "Fix the archive validation error before downloading.";
   return "Ready to build topbar_rank.";
@@ -111,7 +111,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
   const [appState, setAppState] = useState(initialState);
   const { topbar, showrank, result, isBusy } = appState;
   const [showShowrankLinks, setShowShowrankLinks] = useState(false);
-  const [freshGitCommitInfo, setFreshGitCommitInfo] = useState(gitCommitInfo);
+  const [freshGitCommitInfo, setFreshGitCommitInfo] = useState(null);
   const helperText = useMemo(() => requiredMessage(topbar, showrank), [topbar, showrank]);
   const canBuild = Boolean(topbar.bytes && showrank.bytes && !topbar.error && !showrank.error && !isBusy);
   const activeGitCommitInfo = freshGitCommitInfo || gitCommitInfo;
@@ -147,7 +147,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
       const bytes = await readFileBytes(file);
       const sha256 = await sha256Hex(bytes);
       if (run === topbarRunRef.current) {
-        patchSlot(setAppState, "topbar", { bytes, sha256, status: "Extracting pak01_dir.vpk…" });
+        patchSlot(setAppState, "topbar", { bytes, sha256, status: "Extracting Top Bar Plus VPK…" });
         const validation = await validateTopbarArchive(file, bytes);
         if (run === topbarRunRef.current) {
           patchSlot(setAppState, "topbar", {
@@ -268,15 +268,15 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
 
       <div className="grid">
         <UploadCard
-          title="Required: v34d_top_bar_plus.zip"
-          hint={<>Exact GameBanana <a href="https://gamebanana.com/mods/623518" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Top Bar Plus</a> v34d archive. Filename is only a hint; SHA-256 decides.</>}
+          title={`Required: ${TOPBAR_SOURCE.expectedFileName}`}
+          hint={<>Exact current GameBanana <a href="https://gamebanana.com/mods/623518" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Top Bar Plus</a> archive. Filename is only a hint; embedded VPK SHA-256 decides.</>}
           accept=".zip,application/zip"
           slot={topbar}
           onFile={handleTopbarFile}
         >
           <p>Do not have the file?</p>
           <a href={TOPBAR_SOURCE.modUrl} target="_blank" rel="noreferrer">
-            Download Top Bar Plus v34d
+            Download Top Bar Plus
           </a>
         </UploadCard>
         <UploadCard

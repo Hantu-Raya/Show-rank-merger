@@ -15,7 +15,7 @@ test("fetchLatestTopbarRankSourceTexts fetches every source path", async () => {
   try {
     const sourceTexts = await fetchLatestTopbarRankSourceTexts({ baseUrl: "https://example.test/topbar_rank", cacheKey: "test" });
     assert.deepEqual(Object.keys(sourceTexts), TOPBAR_RANK_SOURCE_PATHS);
-    assert.equal(sourceTexts["panorama/scripts/topbar_rank_hud.js"], "source:panorama/scripts/topbar_rank_hud.js");
+    assert.equal(sourceTexts["panorama/scripts/topbar_rank_v40_hud.js"], "source:panorama/scripts/topbar_rank_v40_hud.js");
     assert.equal(requested.length, TOPBAR_RANK_SOURCE_PATHS.length);
     assert.equal(requested.every((request) => request.cache === "no-store"), true);
     assert.equal(requested.every((request) => request.url.includes("v=test")), true);

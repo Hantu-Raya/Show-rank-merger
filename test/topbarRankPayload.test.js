@@ -47,7 +47,7 @@ test("compiled Panorama scripts use plaintext minified resources", async () => {
   const payload = await buildTopbarRankPayload("showrank_normal");
   const bridge = extractTextResource(fileByPath(payload, "panorama/scripts/topbar_rank_rank_bridge.vjs_c").bytes);
   assert.equal(resourceVersion(fileByPath(payload, "panorama/scripts/topbar_rank_rank_bridge.vjs_c").bytes), 4);
-  assert.equal(resourceVersion(fileByPath(payload, "panorama/scripts/topbar_rank_hud.vjs_c").bytes), 4);
+  assert.equal(resourceVersion(fileByPath(payload, "panorama/scripts/topbar_rank_v40_hud.vjs_c").bytes), 4);
   assert.ok(bridge.length < payload.sourceTexts["panorama/scripts/topbar_rank_rank_bridge.js"].length);
 });
 

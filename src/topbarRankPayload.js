@@ -6,6 +6,38 @@ const MINIFY_FROM = 'var RANK_IMAGE_URL_SUFFIX = "/rank-predict/image?format=web
 const MINIFY_TO = 'var RANK_IMAGE_URL_SUFFIX = "/rank-predict/image?size=small";';
 const SCOREBOARD_OPENER = '<CitadelHudTopBar hittest="false"';
 const SCOREBOARD_PATCHED_OPENER = '<CitadelHudTopBar class="TopbarRankTopBarScoreboardOnly" hittest="false"';
+const CLOSURE_LANGUAGE = "ECMASCRIPT_2020";
+const CLOSURE_OUTPUT_LANGUAGE = "ECMASCRIPT_2015";
+const CLOSURE_ALLOWED_UNDECLARED = new Set([
+  "$",
+  "GameUI",
+  "SteamOverlayAPI",
+  "CitadelShowProfilePageForAccount",
+  "CitadelTopDownScoreboardPlayerHovered",
+  "MOD_ICONS"
+]);
+const CLOSURE_REQUIRED_TOKENS = {
+  "panorama/scripts/topbar_rank_rank_bridge.js": [
+    "TopbarRankTriggerProfileCard",
+    "TopbarRankRegisterTopBarPlayer",
+    "TopbarRankEscapePreloadFromPlayerList",
+    "__TopbarRankBridge",
+    "https://api.deadlock-api.com/v1/players/"
+  ],
+  "panorama/scripts/topbar_rank_v40_hud.js": [
+    "__TopbarRankV40HudRootGeneration",
+    "__TopbarRankV40HudPlayerGeneration",
+    "HudGameTime"
+  ],
+  "panorama/scripts/recent_purchases_redux.js": [
+    "MOD_ICONS",
+    "RecentPurchase"
+  ],
+  "panorama/scripts/recent_purchases_redux_data.js": [
+    "MOD_ICONS",
+    "s2r://panorama/images/items/"
+  ]
+};
 
 export const SCOREBOARD_ONLY_CSS = `.TopbarRankTopBarScoreboardOnly .TopbarRankStatusImage.TopbarRankStatusVisible,
 .TopbarRankTopBarScoreboardOnly .TopbarRankRankImage.TopbarRankRankVisible
@@ -110,19 +142,53 @@ function outputPathForSource(path) {
   throw new Error(`Unsupported topbar_rank source type: ${path}`);
 }
 
+function closureSourceForPath(path, text) {
+  if (path === "panorama/scripts/recent_purchases_redux_data.js") {
+    return `${text.replace(/\s*$/, "")}\nthis["MOD_ICONS"] = MOD_ICONS;\n`;
+  }
+  return text;
+}
+
+function isAllowedClosureError(error) {
+  const description = String(error?.description || error?.message || "");
+  const match = description.match(/^variable ([A-Za-z_$][A-Za-z0-9_$]*) is undeclared$/);
+  return !!match && CLOSURE_ALLOWED_UNDECLARED.has(match[1]);
+}
+
+function assertClosureAdvancedOutput(path, sourceText, compiledCode) {
+  if (!compiledCode || compiledCode.length < 16) {
+    throw new Error(`Closure ADVANCED generated empty code for ${path}`);
+  }
+  if (compiledCode.length >= sourceText.length && path !== "panorama/scripts/recent_purchases_redux_data.js") {
+    throw new Error(`Closure ADVANCED did not reduce ${path}`);
+  }
+  for (const token of CLOSURE_REQUIRED_TOKENS[path] || []) {
+    if (!compiledCode.includes(token)) throw new Error(`Closure ADVANCED output for ${path} missing required token: ${token}`);
+  }
+}
+
+
+function resolveClosureCompiler(closureModule) {
+  const direct = closureModule.default || closureModule["module.exports"] || closureModule.gjd || closureModule.j || closureModule;
+  if (typeof direct === "function") return direct;
+  return direct.default || direct["module.exports"] || direct.gjd || direct.j || direct;
+}
+
 async function minifyScriptSource(path, text) {
-  const { minify } = await import("terser");
-  const result = await minify({ [path]: text }, {
-    compress: false,
-    mangle: false,
-    module: false,
-    toplevel: false,
-    format: {
-      comments: false
-    }
+  const sourceText = closureSourceForPath(path, text);
+  const closureCompiler = resolveClosureCompiler(await import("google-closure-compiler-js"));
+  const result = closureCompiler({
+    jsCode: [{ path, src: sourceText }],
+    compilationLevel: "ADVANCED",
+    languageIn: CLOSURE_LANGUAGE,
+    languageOut: CLOSURE_OUTPUT_LANGUAGE
   });
-  if (!result.code) throw new Error(`Terser did not generate code for ${path}`);
-  return result.code;
+  const errors = (result.errors || []).filter((error) => !isAllowedClosureError(error));
+  if (errors.length > 0) {
+    throw new Error(`Closure ADVANCED failed for ${path}: ${errors.map((error) => error.description || error.message || String(error)).join("; ")}`);
+  }
+  assertClosureAdvancedOutput(path, text, result.compiledCode);
+  return result.compiledCode;
 }
 
 async function compileSource(path, text) {

@@ -15,7 +15,7 @@ This repository is a static Astro + React app for building a local Deadlock `top
   4. `vpkReader.js` parses VPKs and `validateRequiredPaths` checks normalized required paths.
 - Merge/build flow:
   1. `buildMergedRankVpk.js` validates Top Bar and ShowRank, fetches latest `topbar_rank` source from GitHub by default, builds variant payload, merges with payload priority, then writes VPK bytes.
-  2. `topbarRankPayload.js` applies exact ShowRank variant patches to source text, minifies generated JS with Terser, validates source invariants, compiles XML/JS/CSS resources, and verifies required output paths.
+  2. `topbarRankPayload.js` applies exact ShowRank variant patches to source text, minifies generated JS with Closure Compiler ADVANCED via `google-closure-compiler-js`, validates source/minified-output invariants, compiles XML/JS/CSS resources, and verifies required output paths.
   3. `rankMerge.js` normalizes VPK paths and replaces base files with priority payload files on conflicts.
   4. `vpkWriter.js` writes embedded VPK v2 output.
 
@@ -74,7 +74,7 @@ npx fallow health --score --format json --quiet --explain || true
 ## Important Files
 
 - `astro.config.mjs` — Astro React integration, `site: "https://hantu-raya.github.io"`, `base: "/Show-rank-merger/"`.
-- `package.json` — npm scripts and dependencies (`astro`, `@astrojs/react`, React 19, `7z-wasm`).
+- `package.json` — npm scripts and dependencies (`astro`, `@astrojs/react`, React 19, `7z-wasm`, `google-closure-compiler-js`).
 - `.fallowrc.json` — Fallow entries/ignores and `audit.gate: "new-only"`.
 - `public/7zz.wasm` — required by browser archive extraction. Keep available at `/Show-rank-merger/7zz.wasm`.
 - `.github/workflows/deploy-pages.yml` — GitHub Pages deployment; syncs latest `topbar_rank`, runs `npm run check`, publishes `dist/` to the `gh-pages` branch.
@@ -97,6 +97,7 @@ npx fallow health --score --format json --quiet --explain || true
 - Pages workflow runs on pushes, manual dispatch, and every 6 hours so hosted bundled fallback source can pick up upstream `topbar_rank` changes. Runtime VPK builds also fetch latest upstream source directly from GitHub. Configure GitHub Pages to deploy from the `gh-pages` branch.
 - Build artifacts (`dist/`, `.astro/`, `.vite/`, `node_modules/`) are ignored and should not be edited.
 - `7z-wasm` is the browser archive extractor. Do not replace it with server-side extraction.
+- Runtime payload JS minification uses Closure ADVANCED in-browser/Node via `google-closure-compiler-js`; keep required-token guards in `topbarRankPayload.js` when changing payload source names or XML-called wrappers.
 - No TypeScript, ESLint, Prettier, or Playwright config is present. Follow local style and avoid formatting-only churn.
 
 ## Testing & QA

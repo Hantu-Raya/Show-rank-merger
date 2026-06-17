@@ -6,8 +6,12 @@ const MINIFY_FROM = 'var RANK_IMAGE_URL_SUFFIX = "/rank-predict/image?format=web
 const MINIFY_TO = 'var RANK_IMAGE_URL_SUFFIX = "/rank-predict/image?size=small";';
 const SCOREBOARD_OPENER = '<CitadelHudTopBar hittest="false"';
 const SCOREBOARD_PATCHED_OPENER = '<CitadelHudTopBar class="TopbarRankTopBarScoreboardOnly" hittest="false"';
-const CLOSURE_LANGUAGE = "ECMASCRIPT_2020";
-const CLOSURE_OUTPUT_LANGUAGE = "ECMASCRIPT_2015";
+const MOD_ICONS_DATA_PATH = "panorama/scripts/recent_purchases_redux_data.js";
+const CLOSURE_OPTIONS = {
+  compilationLevel: "ADVANCED",
+  languageIn: "ECMASCRIPT_2020",
+  languageOut: "ECMASCRIPT_2015"
+};
 const CLOSURE_ALLOWED_UNDECLARED = new Set([
   "$",
   "GameUI",
@@ -33,7 +37,7 @@ const CLOSURE_REQUIRED_TOKENS = {
     "MOD_ICONS",
     "RecentPurchase"
   ],
-  "panorama/scripts/recent_purchases_redux_data.js": [
+  [MOD_ICONS_DATA_PATH]: [
     "MOD_ICONS",
     "s2r://panorama/images/items/"
   ]
@@ -143,10 +147,7 @@ function outputPathForSource(path) {
 }
 
 function closureSourceForPath(path, text) {
-  if (path === "panorama/scripts/recent_purchases_redux_data.js") {
-    return `${text.replace(/\s*$/, "")}\nthis["MOD_ICONS"] = MOD_ICONS;\n`;
-  }
-  return text;
+  return path === MOD_ICONS_DATA_PATH ? `${text.trimEnd()}\nthis["MOD_ICONS"] = MOD_ICONS;\n` : text;
 }
 
 function isAllowedClosureError(error) {
@@ -156,32 +157,27 @@ function isAllowedClosureError(error) {
 }
 
 function assertClosureAdvancedOutput(path, sourceText, compiledCode) {
-  if (!compiledCode || compiledCode.length < 16) {
-    throw new Error(`Closure ADVANCED generated empty code for ${path}`);
-  }
-  if (compiledCode.length >= sourceText.length && path !== "panorama/scripts/recent_purchases_redux_data.js") {
-    throw new Error(`Closure ADVANCED did not reduce ${path}`);
-  }
-  for (const token of CLOSURE_REQUIRED_TOKENS[path] || []) {
-    if (!compiledCode.includes(token)) throw new Error(`Closure ADVANCED output for ${path} missing required token: ${token}`);
-  }
+  if (!compiledCode || compiledCode.length < 16) throw new Error(`Closure ADVANCED generated empty code for ${path}`);
+  if (compiledCode.length >= sourceText.length && path !== MOD_ICONS_DATA_PATH) throw new Error(`Closure ADVANCED did not reduce ${path}`);
+  requireTokens(compiledCode, CLOSURE_REQUIRED_TOKENS[path] || [], `Closure ADVANCED output for ${path}`);
 }
 
 
 function resolveClosureCompiler(closureModule) {
-  const direct = closureModule.default || closureModule["module.exports"] || closureModule.gjd || closureModule.j || closureModule;
-  if (typeof direct === "function") return direct;
-  return direct.default || direct["module.exports"] || direct.gjd || direct.j || direct;
+  for (const candidate of [closureModule.default, closureModule["module.exports"], closureModule.gjd, closureModule.j, closureModule]) {
+    if (typeof candidate === "function") return candidate;
+    if (candidate && typeof candidate.default === "function") return candidate.default;
+    if (candidate && typeof candidate.gjd === "function") return candidate.gjd;
+  }
+  throw new Error("google-closure-compiler-js did not expose a compiler function");
 }
 
 async function minifyScriptSource(path, text) {
   const sourceText = closureSourceForPath(path, text);
   const closureCompiler = resolveClosureCompiler(await import("google-closure-compiler-js"));
   const result = closureCompiler({
-    jsCode: [{ path, src: sourceText }],
-    compilationLevel: "ADVANCED",
-    languageIn: CLOSURE_LANGUAGE,
-    languageOut: CLOSURE_OUTPUT_LANGUAGE
+    ...CLOSURE_OPTIONS,
+    jsCode: [{ path, src: sourceText }]
   });
   const errors = (result.errors || []).filter((error) => !isAllowedClosureError(error));
   if (errors.length > 0) {

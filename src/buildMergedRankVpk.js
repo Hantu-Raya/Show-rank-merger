@@ -3,7 +3,7 @@ import { fetchLatestTopbarRankSourceTexts } from "./topbarRankSourceFetch.js";
 import { mergeFilesWithPriority } from "./rankMerge.js";
 import { parseVpk } from "./vpkReader.js";
 import { TOPBAR_SOURCE } from "./gamebananaSources.js";
-import { validateTopbarArchive } from "./sourceValidation.js";
+import { validateShowrankArchive, validateTopbarArchive } from "./sourceValidation.js";
 import { writeVpk } from "./vpkWriter.js";
 
 function toBytes(input) {
@@ -14,16 +14,17 @@ function toBytes(input) {
   throw new Error("Expected bytes");
 }
 
-function outputFilenameForMergedVpk(baseName = "") {
-  if (!baseName) return "topbar-rank-normal_dir.vpk";
+function outputFilenameForMergedVpk(variantId, baseName = "") {
+  if (!baseName) return `topbar-rank-${variantId}_dir.vpk`;
   const clean = String(baseName).replace(/[\\/:*?"<>|]+/g, "_");
   const withExtension = clean.toLowerCase().endsWith(".vpk") ? clean : `${clean}.vpk`;
-  return `topbar-rank-normal-${withExtension}`;
+  return `topbar-rank-${variantId}-${withExtension}`;
 }
 
 export async function buildMergedRankVpk({
   baseVpkBytes = null,
   topbarArchiveBytes,
+  showrankArchiveBytes,
   baseName = "",
   payloadSourceTexts = null,
   fetchLatestPayloadSource = true
@@ -32,6 +33,11 @@ export async function buildMergedRankVpk({
     { name: TOPBAR_SOURCE.expectedFileName },
     toBytes(topbarArchiveBytes)
   );
+  const showrankValidation = await validateShowrankArchive(
+    { name: "showrank.7z" },
+    toBytes(showrankArchiveBytes)
+  );
+  const variantId = showrankValidation.variantId;
   const baseParsed = baseVpkBytes ? parseVpk(toBytes(baseVpkBytes)) : { files: [] };
   let sourceTexts = payloadSourceTexts;
   let sourceOrigin = sourceTexts ? "provided" : "bundled";
@@ -39,8 +45,8 @@ export async function buildMergedRankVpk({
     try {
       sourceTexts = await fetchLatestTopbarRankSourceTexts();
       sourceOrigin = "latest";
-    } catch (error) {
-      if (String(error?.message || error).includes("differs byte-for-byte")) throw error;
+    } catch {
+      // The checked-in payload is the offline fallback.
     }
   }
   const payload = await buildTopbarRankPayload(sourceTexts ? { sourceTexts } : undefined);
@@ -49,12 +55,14 @@ export async function buildMergedRankVpk({
 
   return {
     bytes,
+    variantId,
     outputFiles,
     overwrittenPaths,
-    filename: outputFilenameForMergedVpk(baseName),
+    filename: outputFilenameForMergedVpk(variantId, baseName),
     sourceOrigin,
     validation: {
       topbar: topbarValidation,
+      showrank: showrankValidation,
       payload
     }
   };

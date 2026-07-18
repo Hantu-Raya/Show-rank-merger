@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { buildMergedRankVpk } from "../buildMergedRankVpk.js";
 import { downloadBytes } from "../download.js";
 import { buildGitCommitInfoRequestUrl, isGitCommitInfoPayload } from "../gitCommitInfoRefresh.js";
-import { TOPBAR_REQUIRED_VPK_PATHS, TOPBAR_SOURCE } from "../gamebananaSources.js";
+import { SHOWRANK_REQUIRED_VPK_PATHS, SHOWRANK_SOURCES, TOPBAR_REQUIRED_VPK_PATHS, TOPBAR_SOURCE } from "../gamebananaSources.js";
 import { sha256Hex } from "../sha256.js";
-import { validateTopbarArchive } from "../sourceValidation.js";
+import { validateShowrankArchive, validateTopbarArchive } from "../sourceValidation.js";
 
-const EMPTY_RESULT = { bytes: null, filename: "", overwrittenPaths: [], fileCount: 0, status: "", error: "" };
+const EMPTY_RESULT = { bytes: null, filename: "", overwrittenPaths: [], fileCount: 0, variantId: "", status: "", error: "" };
 
 function formatBytes(bytes) {
   const value = Number(bytes || 0);
@@ -25,6 +25,7 @@ function emptySlot() {
     sha256: "",
     pathCount: 0,
     parsed: null,
+    variantId: "",
     isDragging: false
   };
 }
@@ -32,15 +33,21 @@ function emptySlot() {
 function initialState() {
   return {
     topbar: emptySlot(),
+    showrank: emptySlot(),
     result: EMPTY_RESULT,
     isBusy: false
   };
 }
 
-function requiredMessage(topbar) {
-  if (!topbar.bytes) return `Upload ${TOPBAR_SOURCE.expectedFileName}.`;
-  if (topbar.error) return "Fix the archive validation error before downloading.";
-  return "Ready to build the latest topbar_rank.";
+function requiredMessage(topbar, showrank) {
+  if (!topbar.bytes || !showrank.bytes) {
+    const missing = [];
+    if (!topbar.bytes) missing.push(TOPBAR_SOURCE.expectedFileName);
+    if (!showrank.bytes) missing.push(SHOWRANK_SOURCES.showrank_normal.expectedFileName);
+    return `Upload ${missing.join(" and ")}.`;
+  }
+  if (topbar.error || showrank.error) return "Fix the archive validation error before downloading.";
+  return "Ready to build the latest combined Topbar Rank VPK.";
 }
 
 async function readFileBytes(file) {
@@ -108,11 +115,12 @@ function UploadCard({ title, hint, accept, slot, onFile, children }) {
 
 export default function RankMergerIsland({ gitCommitInfo = null }) {
   const topbarRunRef = useRef(0);
+  const showrankRunRef = useRef(0);
   const [appState, setAppState] = useState(initialState);
-  const { topbar, result, isBusy } = appState;
+  const { topbar, showrank, result, isBusy } = appState;
   const [freshGitCommitInfo, setFreshGitCommitInfo] = useState(null);
-  const helperText = requiredMessage(topbar);
-  const canBuild = Boolean(topbar.bytes && !topbar.error && !isBusy);
+  const helperText = requiredMessage(topbar, showrank);
+  const canBuild = Boolean(topbar.bytes && showrank.bytes && !topbar.error && !showrank.error && !isBusy);
   const activeGitCommitInfo = freshGitCommitInfo || gitCommitInfo;
 
   useEffect(() => {
@@ -165,6 +173,39 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
     }
   }
 
+  async function handleShowrankFile(file, dragging) {
+    if (!file) {
+      if (typeof dragging === "boolean") patchSlot(setAppState, "showrank", { isDragging: dragging });
+      return;
+    }
+
+    const run = ++showrankRunRef.current;
+    resetResult(setAppState);
+    patchSlot(setAppState, "showrank", { ...emptySlot(), file, status: "Hashing…" });
+    try {
+      const bytes = await readFileBytes(file);
+      const sha256 = await sha256Hex(bytes);
+      if (run === showrankRunRef.current) {
+        patchSlot(setAppState, "showrank", { bytes, sha256, status: "Extracting ShowRank VPK…" });
+        const validation = await validateShowrankArchive(file, bytes);
+        if (run === showrankRunRef.current) {
+          patchSlot(setAppState, "showrank", {
+            bytes,
+            sha256: validation.sha256,
+            parsed: validation.parsed,
+            variantId: validation.variantId,
+            pathCount: SHOWRANK_REQUIRED_VPK_PATHS.length,
+            status: `Detected ${validation.variantId}`
+          });
+        }
+      }
+    } catch (error) {
+      if (run === showrankRunRef.current) {
+        patchSlot(setAppState, "showrank", { bytes: null, error: error?.message || String(error), status: "" });
+      }
+    }
+  }
+
 
 
   async function handleBuild() {
@@ -176,7 +217,8 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
     setAppState((state) => ({ ...state, isBusy: true, result: { ...EMPTY_RESULT, status: "Fetching latest topbar_rank source and building VPK…" } }));
     try {
       const merged = await buildMergedRankVpk({
-        topbarArchiveBytes: topbar.bytes
+        topbarArchiveBytes: topbar.bytes,
+        showrankArchiveBytes: showrank.bytes
       });
       downloadBytes(merged.filename, merged.bytes);
       setAppState((state) => ({
@@ -186,6 +228,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
           filename: merged.filename,
           overwrittenPaths: merged.overwrittenPaths,
           fileCount: merged.outputFiles.length,
+          variantId: merged.variantId,
           status: `Built and downloaded ${merged.outputFiles.length} files from ${merged.sourceOrigin} source (${formatBytes(merged.bytes.byteLength)}).`,
           error: ""
         }
@@ -218,7 +261,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
               </a>
             ) : null}
           </div>
-          <p>Build the latest combined Topbar Rank VPK from the exact Top Bar Plus v40 download. Files stay on your machine.</p>
+          <p>Build the latest combined Topbar Rank VPK from exact Top Bar Plus v40c and ShowRank 2026-07-07 downloads. Files stay on your machine.</p>
         </div>
         <div className="header-actions" aria-label="Project support actions">
           <a className="support-button" href="https://ko-fi.com/hantuaraya" target="_blank" rel="noreferrer" aria-label="Donate on Ko-fi">
@@ -245,12 +288,26 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
             Download Top Bar Plus
           </a>
         </UploadCard>
+        <UploadCard
+          title={`Required: ${SHOWRANK_SOURCES.showrank_normal.expectedFileName}`}
+          hint={<>Exact latest normal <a href="https://gamebanana.com/mods/681028" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>ShowRank</a> GameBanana archive. Filename is only a hint; archive SHA-256 decides.</>}
+          accept=".7z,application/x-7z-compressed"
+          slot={showrank}
+          onFile={handleShowrankFile}
+        >
+          <p>Do not have the file?</p>
+          <a href={SHOWRANK_SOURCES.showrank_normal.modUrl} target="_blank" rel="noreferrer">
+            Download ShowRank
+          </a>
+        </UploadCard>
       </div>
 
       <section className="result-panel" aria-live="polite">
         <h2>Result</h2>
         <div className="result-grid">
           <span>Top Bar SHA-256</span><strong>{topbar.sha256 || "Not validated"}</strong>
+          <span>ShowRank SHA-256</span><strong>{showrank.sha256 || "Not validated"}</strong>
+          <span>ShowRank variant</span><strong>{showrank.variantId || result.variantId || "Not detected"}</strong>
           <span>Generated files</span><strong>{result.fileCount || "Not built"}</strong>
         </div>
         {result.status ? <p className="success">{result.status}</p> : <p className="helper">{helperText}</p>}

@@ -1,15 +1,41 @@
 export const TOPBAR_SOURCE = {
-  id: "topbar_v40",
-  fileId: "1723559",
-  modUrl: "https://gamebanana.com/mods/download/623518#FileInfo_1723559",
-  downloadUrl: "https://gamebanana.com/dl/1723559",
-  expectedFileName: "v40_top_bar_plus.zip",
-  expectedSize: 229255,
-  expectedSha256: "bd4d095617af73ad90c62c01fe0e0de310a154527eed60f5baa57af66517f4d5",
-  expectedVpkSha256: "239359991704a282eb923a2d7d82450df0bbc06ce3eaddfa8b74059a8ff779fe",
+  id: "topbar_v40c",
+  fileId: "1747474",
+  modUrl: "https://gamebanana.com/mods/download/623518#FileInfo_1747474",
+  downloadUrl: "https://gamebanana.com/dl/1747474",
+  expectedFileName: "v40c_top_bar_plus.zip",
+  expectedSize: 220302,
+  expectedSha256: "147b03b39c2ca8148827d21085553ac0b6a706611bce09fe979cfa3712c2f1e2",
+  expectedVpkSha256: "4082798990b217f9affa11f53492073dd16d9fd9563e7dba489ba960af404242",
   archiveMember: "pak01_dir.vpk",
   compatibleArchiveMembers: ["pak01_dir.vpk", "pak89_dir.vpk"]
 };
+
+export const SHOWRANK_SOURCES = {
+  showrank_normal: {
+    fileId: "1748325",
+    modUrl: "https://gamebanana.com/mods/download/681028#FileInfo_1748325",
+    downloadUrl: "https://gamebanana.com/dl/1748325",
+    expectedFileName: "showrank_normal_20260707_105226.7z",
+    expectedSize: 36322,
+    expectedSha256: "f74ef76418d5ec5a4eedaba32a27651143c1f873c38e5c83c5d3f08b10d44ab9",
+    expectedVpkSha256: "67a1f096af5f3100faf50f8e272eba986a399d59d71a88a768ce61a78adb4d3d",
+    archiveMember: "archive_normal/pak89_dir.vpk"
+  }
+};
+
+export const SHOWRANK_REQUIRED_VPK_PATHS = [
+  "panorama/layout/citadel_hud_top_bar.vxml_c",
+  "panorama/layout/citadel_hud_top_bar_player.vxml_c",
+  "panorama/layout/citadel_ui_context_menu_player.vxml_c",
+  "panorama/layout/hud_escape_menu.vxml_c",
+  "panorama/layout/players_list_entry.vxml_c",
+  "panorama/layout/profile_card.vxml_c",
+  "panorama/scripts/showrank_common.vjs_c",
+  "panorama/styles/showrank_player_list.vcss_c",
+  "panorama/styles/showrank_profile_card.vcss_c",
+  "panorama/styles/showrank_top_bar.vcss_c"
+];
 
 
 export const TOPBAR_REQUIRED_VPK_PATHS = [

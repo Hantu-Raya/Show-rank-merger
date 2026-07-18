@@ -2,12 +2,7 @@ import assert from "node:assert/strict";
 
 import { extractArchiveMember } from "../src/archiveExtractor.js";
 import { buildMergedRankVpk } from "../src/buildMergedRankVpk.js";
-import {
-  SHOWRANK_REQUIRED_VPK_PATHS,
-  SHOWRANK_SOURCES,
-  TOPBAR_REQUIRED_VPK_PATHS,
-  TOPBAR_SOURCE
-} from "../src/gamebananaSources.js";
+import { TOPBAR_REQUIRED_VPK_PATHS, TOPBAR_SOURCE } from "../src/gamebananaSources.js";
 import { normalizeVpkPath } from "../src/rankMerge.js";
 import { sha256Hex } from "../src/sha256.js";
 import { validateRequiredPaths } from "../src/sourceValidation.js";
@@ -37,29 +32,12 @@ async function verifyArchive(label, source, requiredPaths) {
 }
 
 const topbar = await verifyArchive("Top Bar Plus v40", TOPBAR_SOURCE, TOPBAR_REQUIRED_VPK_PATHS);
-const showranks = new Map();
-
-for (const [variantId, source] of Object.entries(SHOWRANK_SOURCES)) {
-  const verified = await verifyArchive(variantId, source, SHOWRANK_REQUIRED_VPK_PATHS);
-  showranks.set(variantId, verified);
+const merged = await buildMergedRankVpk({ topbarArchiveBytes: topbar.bytes });
+const parsed = parseVpk(merged.bytes);
+const paths = new Set(parsed.files.map((file) => normalizeVpkPath(file.path)));
+for (const path of TOPBAR_RANK_REQUIRED_OUTPUT_PATHS) {
+  assert.equal(paths.has(normalizeVpkPath(path)), true, `merged output missing ${path}`);
 }
-
-for (const [variantId, verified] of showranks) {
-  const merged = await buildMergedRankVpk({
-    topbarArchiveBytes: topbar.bytes,
-    showrankArchiveBytes: verified.bytes
-  });
-  assert.equal(merged.variantId, variantId);
-  const parsed = parseVpk(merged.bytes);
-  const paths = new Set(parsed.files.map((file) => normalizeVpkPath(file.path)));
-  for (const path of [
-    "panorama/scripts/topbar_rank_rank_bridge.vjs_c",
-    "panorama/scripts/topbar_rank_v40_hud.vjs_c",
-    ...TOPBAR_RANK_REQUIRED_OUTPUT_PATHS
-  ]) {
-    assert.equal(paths.has(normalizeVpkPath(path)), true, `${variantId} merged output missing ${path}`);
-  }
-  console.log(`OK merged ${variantId}: ${parsed.files.length} files`);
-}
-
-console.log("OK: GameBanana fixtures verified");
+assert.equal(paths.has("panorama/scripts/topbar_rank_rank_bridge.vjs_c"), false);
+console.log(`OK merged latest topbar_rank: ${parsed.files.length} files`);
+console.log("OK: GameBanana fixture verified");

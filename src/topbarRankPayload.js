@@ -1,95 +1,59 @@
 import { compilePanoramaLayoutResource, compilePanoramaStyleResource, compileTextResource } from "./source2ResourceWriter.js";
 import { normalizeVpkPath } from "./rankMerge.js";
 import { TOPBAR_RANK_SOURCE_TEXTS } from "./payload/topbarRankSources.generated.js";
+import { TOPBAR_RANK_SOURCE_PATHS } from "./topbarRankSourceManifest.js";
+import { SHOWRANK_CLOSURE_EXTERNS } from "./showrankClosureExterns.generated.js";
 
-const MINIFY_FROM = 'var RANK_IMAGE_URL_SUFFIX = "/rank-predict/image?format=webp";';
-const MINIFY_TO = 'var RANK_IMAGE_URL_SUFFIX = "/rank-predict/image?size=small";';
-const SCOREBOARD_OPENER = '<CitadelHudTopBar hittest="false"';
-const SCOREBOARD_PATCHED_OPENER = '<CitadelHudTopBar class="TopbarRankTopBarScoreboardOnly" hittest="false"';
+const SHOWRANK_SOURCE_PATH = "panorama/scripts/showrank_common.js";
 const MOD_ICONS_DATA_PATH = "panorama/scripts/recent_purchases_redux_data.js";
 const CLOSURE_OPTIONS = {
   compilationLevel: "ADVANCED",
+  externs: [{ path: "showrank_closure_advanced.externs.js", src: SHOWRANK_CLOSURE_EXTERNS }],
   languageIn: "ECMASCRIPT_2020",
-  languageOut: "ECMASCRIPT_2015"
+  languageOut: "ECMASCRIPT5",
+  rewritePolyfills: false,
+  warningLevel: "QUIET"
 };
-const CLOSURE_ALLOWED_UNDECLARED = new Set([
-  "$",
-  "GameUI",
-  "SteamOverlayAPI",
-  "CitadelShowProfilePageForAccount",
-  "CitadelTopDownScoreboardPlayerHovered",
-  "MOD_ICONS"
-]);
+const CLOSURE_ALLOWED_UNDECLARED = new Set(["$", "MOD_ICONS"]);
 const CLOSURE_REQUIRED_TOKENS = {
-  "panorama/scripts/topbar_rank_rank_bridge.js": [
-    "TopbarRankTriggerProfileCard",
-    "TopbarRankRegisterTopBarPlayer",
-    "TopbarRankEscapePreloadFromPlayerList",
-    "__TopbarRankBridge",
-    "https://api.deadlock-api.com/v1/players/"
+  [SHOWRANK_SOURCE_PATH]: [
+    "__ShowRankWebMediaBridgeClean",
+    "ShowRankTriggerProfileCard",
+    "ShowRankOpenStatlocker",
+    "ShowRankContextMenuOpenStatlocker",
+    "ShowRankContextMenuOpenDeadlock",
+    "ShowRankMarkTopBarHover",
+    "ShowRankMarkPlayerListHover",
+    "ShowRankClearPlayerListHover",
+    "ShowRankEscapePreloadFromPlayerList",
+    "ShowRankRegisterPlayerListRowReady"
   ],
   "panorama/scripts/topbar_rank_v40_hud.js": [
     "__TopbarRankV40HudRootGeneration",
     "__TopbarRankV40HudPlayerGeneration",
-    "HudGameTime"
+    "SpentSoulDisplay"
   ],
   "panorama/scripts/recent_purchases_redux.js": [
-    "MOD_ICONS",
-    "RecentPurchase"
+    "RecentPurchasesContainer",
+    "__TopbarRankRecentPurchaseName",
+    "MOD_ICONS"
   ],
-  [MOD_ICONS_DATA_PATH]: [
-    "MOD_ICONS",
-    "s2r://panorama/images/items/"
-  ]
+  [MOD_ICONS_DATA_PATH]: ["MOD_ICONS"]
 };
 
-export const SCOREBOARD_ONLY_CSS = `.TopbarRankTopBarScoreboardOnly .TopbarRankStatusImage.TopbarRankStatusVisible,
-.TopbarRankTopBarScoreboardOnly .TopbarRankRankImage.TopbarRankRankVisible
-{
-	visibility: collapse;
-	opacity: 0;
-}
+export const TOPBAR_RANK_REQUIRED_OUTPUT_PATHS = TOPBAR_RANK_SOURCE_PATHS.map(outputPathForSource);
 
-.TopbarRankTopBarScoreboardOnly.wants_scoreboard .TopbarRankRankImage.TopbarRankRankVisible,
-.TopbarRankTopBarScoreboardOnly.gScoreboardOpen .TopbarRankRankImage.TopbarRankRankVisible
-{
-	visibility: visible;
-	opacity: 1;
-}
-
-.TopbarRankTopBarScoreboardOnly.wants_scoreboard .TopbarRankStatusImage.TopbarRankStatusVisible,
-.TopbarRankTopBarScoreboardOnly.gScoreboardOpen .TopbarRankStatusImage.TopbarRankStatusVisible
-{
-	visibility: visible;
-	opacity: 0.75;
-}`;
-
-export const TOPBAR_RANK_REQUIRED_OUTPUT_PATHS = [
-  "panorama/layout/citadel_hud_hero_shop.vxml_c",
-  "panorama/layout/citadel_hud_top_bar.vxml_c",
-  "panorama/layout/citadel_hud_top_bar_player.vxml_c",
-  "panorama/layout/profile_card.vxml_c",
-  "panorama/layout/citadel_ui_context_menu_player.vxml_c",
-  "panorama/layout/hud_escape_menu.vxml_c",
-  "panorama/layout/players_list_entry.vxml_c",
-  "panorama/scripts/recent_purchases_redux.vjs_c",
-  "panorama/scripts/recent_purchases_redux_data.vjs_c",
-  "panorama/scripts/topbar_rank_rank_bridge.vjs_c",
-  "panorama/scripts/topbar_rank_v40_hud.vjs_c",
-  "panorama/styles/citadel_hud_hero_shop.vcss_c",
-  "panorama/styles/topbar_rank_topbar.vcss_c",
-  "panorama/styles/objectives_map.vcss_c",
-  "panorama/styles/topbar_rank_profile_card.vcss_c",
-  "panorama/styles/topbar_rank_player_list.vcss_c",
-  "panorama/styles/topbar_rank_base/citadel_hud_top_bar.vcss_c",
-  "panorama/styles/topbar_rank_base/objectives_map.vcss_c"
-];
-
-export const SHOWRANK_VARIANTS = {
-  showrank_normal: { minifyRanks: false, scoreboardOnly: false },
-  showrank_scoreboard: { minifyRanks: false, scoreboardOnly: true },
-  showrank_minify_ranks: { minifyRanks: true, scoreboardOnly: false },
-  showrank_minify_ranks_scoreboard_only_topbar: { minifyRanks: true, scoreboardOnly: true }
+const RANK_XML_CONTRACTS = {
+  "panorama/layout/citadel_hud_top_bar.xml": [],
+  "panorama/layout/citadel_hud_top_bar_player.xml": ["ShowRankMarkTopBarHover"],
+  "panorama/layout/profile_card.xml": ["ShowRankTriggerProfileCard", "ShowRankOpenStatlocker"],
+  "panorama/layout/citadel_ui_context_menu_player.xml": ["ShowRankContextMenuOpenStatlocker", "ShowRankContextMenuOpenDeadlock"],
+  "panorama/layout/hud_escape_menu.xml": ["ShowRankEscapePreloadFromPlayerList"],
+  "panorama/layout/players_list_entry.xml": [
+    "ShowRankRegisterPlayerListRowReady",
+    "ShowRankMarkPlayerListHover",
+    "ShowRankClearPlayerListHover"
+  ]
 };
 
 function cloneSourceTexts(sourceTexts = TOPBAR_RANK_SOURCE_TEXTS) {
@@ -108,35 +72,38 @@ function forbidTokens(text, tokens, label) {
   }
 }
 
+function countToken(text, token) {
+  return text.split(token).length - 1;
+}
+
 function validateSourceInvariants(sourceTexts) {
-  const bridge = sourceTexts["panorama/scripts/topbar_rank_rank_bridge.js"] || "";
-  requireTokens(bridge, [
-    'RANK_API_URL_PREFIX = "https://api.deadlock-api.com/v1/players/"',
-    "TEAM_AVERAGE_REQUIRED_ACCOUNTS = 6",
-    "TopbarRankTopBarRootLoaded",
-    "TopbarRankRegisterTopBarPlayer"
-  ], "topbar_rank_rank_bridge.js");
-
-  const hud = sourceTexts["panorama/scripts/topbar_rank_v40_hud.js"] || "";
-  requireTokens(hud, [
-    "ROOT_TICK_SECONDS = 1.0",
-    "INITIAL_URN = 720",
-    "URN_DURATION = 360",
-    "TIER_COSTS = { isTier1: 800, isTier2: 1600, isTier3: 3200, isTier4: 6400 }"
-  ], "topbar_rank_v40_hud.js");
-
-  for (const path of [
-    "panorama/layout/profile_card.xml",
-    "panorama/layout/citadel_ui_context_menu_player.xml",
-    "panorama/layout/hud_escape_menu.xml",
-    "panorama/layout/players_list_entry.xml"
-  ]) {
-    const text = sourceTexts[path] || "";
-    requireTokens(text, ["topbar_rank_rank_bridge.vjs_c"], path);
-    forbidTokens(text, ["topbar_rank_hud.vjs_c", "topbar_rank_v40_hud.vjs_c"], path);
+  const missingSources = TOPBAR_RANK_SOURCE_PATHS.filter((path) => !(path in sourceTexts));
+  if (missingSources.length > 0) throw new Error(`topbar_rank source missing: ${missingSources.join(", ")}`);
+  if ("panorama/scripts/topbar_rank_rank_bridge.js" in sourceTexts) {
+    throw new Error("topbar_rank source contains removed topbar_rank_rank_bridge.js");
   }
 
-  forbidTokens(sourceTexts["panorama/layout/hud_escape_menu.xml"] || "", ["topbar_rank_topbar.vcss_c"], "hud_escape_menu.xml");
+  const bridge = sourceTexts["panorama/scripts/showrank_common.js"] || "";
+  requireTokens(bridge, [
+    "InstallShowRankWrapper",
+    "GuardShowRankAction",
+    "/rank-predict/image?format=webp"
+  ], "showrank_common.js");
+  forbidTokens(bridge, ["SHOWRANK_DIAG_BUILD", "ShowRankDiag", "$.Msg", "console."], "showrank_common.js");
+
+  for (const [path, wrappers] of Object.entries(RANK_XML_CONTRACTS)) {
+    const text = sourceTexts[path] || "";
+    if (countToken(text, "showrank_common.vjs_c") !== 1) {
+      throw new Error(`${path} must load showrank_common.vjs_c exactly once`);
+    }
+    forbidTokens(text, ["topbar_rank_rank_bridge.vjs_c", "$.TopbarRank"], path);
+    requireTokens(text, wrappers.map((wrapper) => `$.${wrapper}`), path);
+  }
+
+  const topbar = sourceTexts["panorama/layout/citadel_hud_top_bar.xml"] || "";
+  requireTokens(topbar, ["topbar_rank_v40_hud.vjs_c", "ShowRankTeamAverageLayer"], "citadel_hud_top_bar.xml");
+  const player = sourceTexts["panorama/layout/citadel_hud_top_bar_player.xml"] || "";
+  requireTokens(player, ["topbar_rank_v40_hud.vjs_c", "ShowRankTopBarRankImage", "SpentSoulDisplay"], "citadel_hud_top_bar_player.xml");
 }
 
 function outputPathForSource(path) {
@@ -146,22 +113,11 @@ function outputPathForSource(path) {
   throw new Error(`Unsupported topbar_rank source type: ${path}`);
 }
 
-function closureSourceForPath(path, text) {
-  return path === MOD_ICONS_DATA_PATH ? `${text.trimEnd()}\nthis["MOD_ICONS"] = MOD_ICONS;\n` : text;
-}
-
 function isAllowedClosureError(error) {
   const description = String(error?.description || error?.message || "");
   const match = description.match(/^variable ([A-Za-z_$][A-Za-z0-9_$]*) is undeclared$/);
   return !!match && CLOSURE_ALLOWED_UNDECLARED.has(match[1]);
 }
-
-function assertClosureAdvancedOutput(path, sourceText, compiledCode) {
-  if (!compiledCode || compiledCode.length < 16) throw new Error(`Closure ADVANCED generated empty code for ${path}`);
-  if (compiledCode.length >= sourceText.length && path !== MOD_ICONS_DATA_PATH) throw new Error(`Closure ADVANCED did not reduce ${path}`);
-  requireTokens(compiledCode, CLOSURE_REQUIRED_TOKENS[path] || [], `Closure ADVANCED output for ${path}`);
-}
-
 
 function resolveClosureCompiler(closureModule) {
   for (const candidate of [closureModule.default, closureModule["module.exports"], closureModule.gjd, closureModule.j, closureModule]) {
@@ -172,76 +128,47 @@ function resolveClosureCompiler(closureModule) {
   throw new Error("google-closure-compiler-js did not expose a compiler function");
 }
 
-async function minifyScriptSource(path, text) {
-  const sourceText = closureSourceForPath(path, text);
+async function minifyTopbarScript(path, text) {
+  const sourceText = path === MOD_ICONS_DATA_PATH
+    ? text.replace(/^\s*const MOD_ICONS\s*=/m, 'this["MOD_ICONS"] =')
+    : text;
+  if (path === MOD_ICONS_DATA_PATH && sourceText === text) {
+    throw new Error("Could not preserve MOD_ICONS global in Closure input");
+  }
   const closureCompiler = resolveClosureCompiler(await import("google-closure-compiler-js"));
   const result = closureCompiler({
     ...CLOSURE_OPTIONS,
     jsCode: [{ path, src: sourceText }]
   });
   const errors = (result.errors || []).filter((error) => !isAllowedClosureError(error));
-  if (errors.length > 0) {
+  if (errors.length) {
     throw new Error(`Closure ADVANCED failed for ${path}: ${errors.map((error) => error.description || error.message || String(error)).join("; ")}`);
   }
-  assertClosureAdvancedOutput(path, text, result.compiledCode);
+  if (!result.compiledCode || (result.compiledCode.length >= sourceText.length && path !== MOD_ICONS_DATA_PATH)) {
+    throw new Error(`Closure ADVANCED did not reduce ${path}`);
+  }
+  requireTokens(result.compiledCode, CLOSURE_REQUIRED_TOKENS[path] || [], `Closure ADVANCED output for ${path}`);
   return result.compiledCode;
 }
 
 async function compileSource(path, text) {
   if (path.endsWith(".xml")) return compilePanoramaLayoutResource(text);
-  if (path.endsWith(".js")) return compileTextResource(await minifyScriptSource(path, text), { resourceVersion: 4 });
+  if (path.endsWith(".js")) return compileTextResource(await minifyTopbarScript(path, text), { resourceVersion: 4 });
   if (path.endsWith(".css")) return compilePanoramaStyleResource(text);
   throw new Error(`Unsupported topbar_rank source type: ${path}`);
 }
 
-export async function buildTopbarRankPayload(variantId, { sourceTexts: inputSourceTexts = TOPBAR_RANK_SOURCE_TEXTS } = {}) {
-  const variant = SHOWRANK_VARIANTS[variantId];
-  if (!variant) throw new Error(`Unknown ShowRank variant: ${variantId}`);
-
+export async function buildTopbarRankPayload({ sourceTexts: inputSourceTexts = TOPBAR_RANK_SOURCE_TEXTS } = {}) {
   const sourceTexts = cloneSourceTexts(inputSourceTexts);
-  const appliedPatches = [];
-
-  if (variant.minifyRanks) {
-    const path = "panorama/scripts/topbar_rank_rank_bridge.js";
-    const text = sourceTexts[path];
-    if (text.includes(MINIFY_FROM)) {
-      sourceTexts[path] = text.replace(MINIFY_FROM, MINIFY_TO);
-    } else if (!text.includes(MINIFY_TO)) {
-      throw new Error("Could not apply minify-ranks patch");
-    }
-    appliedPatches.push("minify-ranks");
-  }
-
-  if (variant.scoreboardOnly) {
-    const layoutPath = "panorama/layout/citadel_hud_top_bar.xml";
-    const layoutText = sourceTexts[layoutPath];
-    if (layoutText.includes(SCOREBOARD_PATCHED_OPENER)) {
-      sourceTexts[layoutPath] = layoutText;
-    } else if (layoutText.includes(SCOREBOARD_OPENER)) {
-      sourceTexts[layoutPath] = layoutText.replace(SCOREBOARD_OPENER, SCOREBOARD_PATCHED_OPENER);
-    } else {
-      throw new Error("Could not apply scoreboard-only top-bar layout patch");
-    }
-
-    const cssPath = "panorama/styles/topbar_rank_topbar.css";
-    if (!sourceTexts[cssPath].includes("TopbarRankTopBarScoreboardOnly")) {
-      sourceTexts[cssPath] = `${sourceTexts[cssPath].replace(/\s*$/, "")}\n\n${SCOREBOARD_ONLY_CSS}\n`;
-    }
-    appliedPatches.push("scoreboard-only-topbar");
-  }
-
   validateSourceInvariants(sourceTexts);
 
-  const files = await Promise.all(Object.entries(sourceTexts).map(async ([path, text]) => ({
+  const files = await Promise.all(TOPBAR_RANK_SOURCE_PATHS.map(async (path) => ({
     path: outputPathForSource(path),
-    bytes: await compileSource(path, text)
+    bytes: await compileSource(path, sourceTexts[path])
   })));
-
   const outputPathSet = new Set(files.map((file) => normalizeVpkPath(file.path)));
   const missing = TOPBAR_RANK_REQUIRED_OUTPUT_PATHS.filter((path) => !outputPathSet.has(normalizeVpkPath(path)));
-  if (missing.length > 0) {
-    throw new Error(`Generated topbar_rank payload missing: ${missing.join(", ")}`);
-  }
+  if (missing.length > 0) throw new Error(`Generated topbar_rank payload missing: ${missing.join(", ")}`);
 
-  return { files, sourceTexts, appliedPatches };
+  return { files, sourceTexts, appliedPatches: [] };
 }

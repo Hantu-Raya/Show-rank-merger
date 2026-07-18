@@ -3,7 +3,7 @@ import { fetchLatestTopbarRankSourceTexts } from "./topbarRankSourceFetch.js";
 import { mergeFilesWithPriority } from "./rankMerge.js";
 import { parseVpk } from "./vpkReader.js";
 import { TOPBAR_SOURCE } from "./gamebananaSources.js";
-import { validateShowrankArchive, validateTopbarArchive } from "./sourceValidation.js";
+import { validateTopbarArchive } from "./sourceValidation.js";
 import { writeVpk } from "./vpkWriter.js";
 
 function toBytes(input) {
@@ -14,41 +14,47 @@ function toBytes(input) {
   throw new Error("Expected bytes");
 }
 
-function outputFilenameForMergedVpk(variantId, baseName = "") {
-  if (!baseName) return `topbar-rank-${variantId}_dir.vpk`;
+function outputFilenameForMergedVpk(baseName = "") {
+  if (!baseName) return "topbar-rank-normal_dir.vpk";
   const clean = String(baseName).replace(/[\\/:*?"<>|]+/g, "_");
   const withExtension = clean.toLowerCase().endsWith(".vpk") ? clean : `${clean}.vpk`;
-  return `topbar-rank-${variantId}-${withExtension}`;
+  return `topbar-rank-normal-${withExtension}`;
 }
 
 export async function buildMergedRankVpk({
   baseVpkBytes = null,
   topbarArchiveBytes,
-  showrankArchiveBytes,
   baseName = "",
   payloadSourceTexts = null,
   fetchLatestPayloadSource = true
 }) {
-  const [topbarValidation, showrankValidation] = await Promise.all([
-    validateTopbarArchive({ name: TOPBAR_SOURCE.expectedFileName }, toBytes(topbarArchiveBytes)),
-    validateShowrankArchive({ name: "showrank.7z" }, toBytes(showrankArchiveBytes))
-  ]);
-  const variantId = showrankValidation.variantId;
+  const topbarValidation = await validateTopbarArchive(
+    { name: TOPBAR_SOURCE.expectedFileName },
+    toBytes(topbarArchiveBytes)
+  );
   const baseParsed = baseVpkBytes ? parseVpk(toBytes(baseVpkBytes)) : { files: [] };
-  const sourceTexts = payloadSourceTexts || (fetchLatestPayloadSource ? await fetchLatestTopbarRankSourceTexts() : null);
-  const payload = await buildTopbarRankPayload(variantId, sourceTexts ? { sourceTexts } : undefined);
+  let sourceTexts = payloadSourceTexts;
+  let sourceOrigin = sourceTexts ? "provided" : "bundled";
+  if (!sourceTexts && fetchLatestPayloadSource) {
+    try {
+      sourceTexts = await fetchLatestTopbarRankSourceTexts();
+      sourceOrigin = "latest";
+    } catch (error) {
+      if (String(error?.message || error).includes("differs byte-for-byte")) throw error;
+    }
+  }
+  const payload = await buildTopbarRankPayload(sourceTexts ? { sourceTexts } : undefined);
   const { files: outputFiles, overwrittenPaths } = mergeFilesWithPriority(baseParsed.files, payload.files);
   const bytes = writeVpk(outputFiles);
 
   return {
     bytes,
-    variantId,
     outputFiles,
     overwrittenPaths,
-    filename: outputFilenameForMergedVpk(variantId, baseName),
+    filename: outputFilenameForMergedVpk(baseName),
+    sourceOrigin,
     validation: {
       topbar: topbarValidation,
-      showrank: showrankValidation,
       payload
     }
   };

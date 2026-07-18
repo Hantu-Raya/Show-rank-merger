@@ -1,24 +1,23 @@
 # Topbar Rank VPK Merger
 
-Static Astro + React app for building a local Deadlock `topbar_rank` VPK. The app runs in the browser: users upload Top Bar Plus v40 and a supported ShowRank archive, validation happens locally, latest `topbar_rank` source is fetched from GitHub at build time, and the merged VPK downloads to the user's machine.
+Static Astro + React app for building a local Deadlock `topbar_rank` VPK. The app runs in the browser: users upload the exact Top Bar Plus v40 archive, validation happens locally, the current combined `topbar_rank` source is fetched from GitHub at build time, and the generated VPK downloads to the user's machine.
 
 Hosted app: <https://hantu-raya.github.io/Show-rank-merger/>
 
 ## What it does
 
 - Validates the exact Top Bar Plus v40 GameBanana archive and embedded VPK.
-- Validates supported ShowRank 2026-06-08 variants by SHA-256.
-- Fetches current `topbar_rank/panorama/**` source from `Hantu-Raya/Deadlock-mods-collection` when building.
-- Generates Source 2 resource payloads for XML, JavaScript, and CSS.
-- Writes a local VPK with generated `topbar_rank` files winning conflicts.
+- Fetches the current normal-only `topbar_rank/panorama/**` source from `Hantu-Raya/Deadlock-mods-collection` when building.
+- Verifies that the copied `showrank_common.js` is byte-identical to canonical ShowRank.
+- Generates all 19 Source 2 resources, keeps canonical ShowRank source unchanged, and Closure ADVANCED-minifies all four staged scripts with the builder’s extern contract.
+- Falls back to the bundled current source when GitHub is unavailable.
 - Keeps files local. There is no server-side archive processing.
 
-## Supported inputs
+## Supported input
 
 - Top Bar Plus v40: `v40_top_bar_plus.zip`
-- ShowRank variants listed in `src/gamebananaSources.js`
 
-Filename is only a hint. Archive size, archive SHA-256, embedded VPK SHA-256, and required VPK paths decide compatibility.
+Filename is only a hint. Archive size, archive SHA-256, embedded VPK SHA-256, and required VPK paths decide compatibility. The current Topbar Rank integration supports only its normal build; legacy ShowRank variants are not patched into it.
 
 ## Development
 
@@ -40,13 +39,27 @@ http://localhost:4321/Show-rank-merger/
 
 ## Payload sync
 
-Refresh the bundled fallback copy of upstream `topbar_rank` source:
+Refresh the bundled fallback copy from upstream:
 
 ```bash
 npm run sync:payload
 ```
 
-The deployed app also fetches latest upstream source at runtime before building a VPK. The bundled payload is the offline/fallback source map.
+To synchronize from a local `topbar_rank` checkout instead:
+
+```powershell
+$env:TOPBAR_RANK_SOURCE_ROOT = "F:\path\to\Deadlock-mods-collection\topbar_rank"
+npm run sync:payload
+```
+
+Refresh the checked-in Closure externs after changing `build_showrank_variants.ps1`:
+
+```powershell
+$env:SHOWRANK_VARIANT_BUILDER = "F:\path\to\Deadlock-mods-collection\build_showrank_variants.ps1"
+npm run sync:externs
+```
+
+The deployed app fetches the latest upstream source and canonical ShowRank bridge before building. Network failures use the bundled source; a canonical bridge mismatch fails closed.
 
 ## Verification
 
@@ -56,13 +69,13 @@ Run the standard local gate:
 npm run check
 ```
 
-Verify live GameBanana fixtures and all ShowRank variants:
+Verify the live Top Bar Plus fixture and generated 19-resource VPK:
 
 ```bash
 node scripts/verify-gamebanana-fixtures.mjs
 ```
 
-The fixture verifier needs network access to GameBanana and GitHub.
+The fixture verifier needs network access to GameBanana. GitHub is used when available; otherwise it exercises the bundled source fallback.
 
 ## Deployment
 

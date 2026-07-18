@@ -1,8 +1,6 @@
 import { extractArchiveMember } from "./archiveExtractor.js";
 import { toUint8Array } from "./bytes.js";
 import {
-  SHOWRANK_REQUIRED_VPK_PATHS,
-  SHOWRANK_SOURCES,
   TOPBAR_REQUIRED_VPK_PATHS,
   TOPBAR_SOURCE
 } from "./gamebananaSources.js";
@@ -70,29 +68,3 @@ export async function validateTopbarArchive(file, bytesInput) {
   return { sha256, parsed, missing, archiveMember, vpkSha256 };
 }
 
-export function detectShowrankVariantBySha256(sha256) {
-  const normalized = String(sha256 || "").toLowerCase();
-  for (const [variantId, source] of Object.entries(SHOWRANK_SOURCES)) {
-    if (source.expectedSha256 === normalized) return variantId;
-  }
-  return "";
-}
-
-export async function validateShowrankArchive(file, bytesInput) {
-  const bytes = toUint8Array(bytesInput, "Archive input");
-  const sha256 = await sha256Hex(bytes);
-  const variantId = detectShowrankVariantBySha256(sha256);
-  if (!variantId) {
-    throw new Error(`ShowRank archive SHA-256 is not one of the supported 2026-06-08 variants: ${sha256}`);
-  }
-
-  const source = SHOWRANK_SOURCES[variantId];
-  assertSize(bytes, source.expectedSize, "ShowRank archive");
-  const vpkBytes = await extractArchiveMember(bytes, displayName(file), source.archiveMember);
-  const parsed = parseVpk(vpkBytes);
-  const { missing } = validateRequiredPaths(parsed.files, SHOWRANK_REQUIRED_VPK_PATHS);
-  if (missing.length > 0) {
-    throw new Error(`ShowRank VPK missing required paths: ${missing.join(", ")}`);
-  }
-  return { variantId, sha256, parsed, missing };
-}

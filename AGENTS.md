@@ -2,21 +2,21 @@
 
 ## Project Overview
 
-This repository is a static Astro + React app for building a local Deadlock `topbar_rank` VPK. Users upload Top Bar Plus v34d and one exact ShowRank 2026-06-08 archive; the browser verifies identity, required VPK contents, fetches latest `topbar_rank` source from GitHub at build time, generates the payload, and downloads the merged VPK. There is no server-side processing.
+This repository is a static Astro + React app for building the current combined Deadlock `topbar_rank` VPK. Users upload the exact Top Bar Plus v40 archive; the browser verifies its identity and required VPK contents, fetches current normal-only `topbar_rank` source from GitHub, verifies its copied ShowRank bridge against canonical ShowRank, generates the payload, and downloads the VPK. There is no server-side processing.
 
 ## Architecture & Data Flow
 
 - `src/pages/index.astro` is the single Astro entry point. It imports `src/styles/global.css` and renders `<RankMergerIsland client:load />`.
 - `src/components/RankMergerIsland.jsx` owns UI state with React local state only. It reads files with `file.arrayBuffer()`, displays inline status/errors, validates archives, builds output, and calls `downloadBytes`.
 - Archive validation flow:
-  1. `sha256Hex` hashes uploaded bytes.
-  2. `sourceValidation.js` checks ShowRank by exact byte size/SHA-256 and Top Bar by exact archive or compatible embedded VPK SHA-256 from `gamebananaSources.js`.
-  3. `archiveExtractor.js` lazy-loads `7z-wasm`, extracts `pak01_dir.vpk` or `pak89_dir.vpk`.
-  4. `vpkReader.js` parses VPKs and `validateRequiredPaths` checks normalized required paths.
-- Merge/build flow:
-  1. `buildMergedRankVpk.js` validates Top Bar and ShowRank, fetches latest `topbar_rank` source from GitHub by default, builds variant payload, merges with payload priority, then writes VPK bytes.
-  2. `topbarRankPayload.js` applies exact ShowRank variant patches to source text, minifies generated JS with Closure Compiler ADVANCED via `google-closure-compiler-js`, validates source/minified-output invariants, compiles XML/JS/CSS resources, and verifies required output paths.
-  3. `rankMerge.js` normalizes VPK paths and replaces base files with priority payload files on conflicts.
+  1. `sha256Hex` hashes the uploaded Top Bar Plus bytes.
+  2. `sourceValidation.js` checks the exact archive or compatible embedded VPK SHA-256 from `gamebananaSources.js`.
+  3. `archiveExtractor.js` lazy-loads `7z-wasm` and extracts `pak01_dir.vpk` or `pak89_dir.vpk`.
+  4. `vpkReader.js` parses the VPK and `validateRequiredPaths` checks normalized required paths.
+- Build flow:
+  1. `buildMergedRankVpk.js` validates Top Bar Plus, fetches current source, falls back to the bundled source on network failure, builds the payload, and writes VPK bytes.
+  2. `topbarRankSourceFetch.js` fetches all 19 source files plus canonical `showrank/panorama/scripts/showrank_common.js`; a byte mismatch fails closed.
+  3. `topbarRankPayload.js` validates normal-only integration contracts, keeps canonical source unchanged, and Closure ADVANCED-minifies all four payload scripts with generated externs and output guards.
   4. `vpkWriter.js` writes embedded VPK v2 output.
 
 ## Key Directories
@@ -41,7 +41,7 @@ npm run build    # astro build
 npm run preview  # astro preview
 npm test         # node --test
 npm run check    # npm test && npm run build
-npm run sync:payload # fetch latest topbar_rank source from GitHub and regenerate bundled source map
+npm run sync:payload # fetch current source and regenerate bundled source map
 ```
 
 Manual/network fixture verification:
@@ -65,10 +65,10 @@ npx fallow health --score --format json --quiet --explain || true
 - Validate external archives by exact size/SHA-256 and required VPK paths; filename is only a user-facing hint.
 - Normalize VPK paths with `normalizeVpkPath` before comparisons. Paths are slash-normalized and lowercased.
 - Generated `topbar_rank` payload wins conflicts. Do not add conflict UI or compatibility aliases unless the product contract changes.
-- Prefer explicit errors at archive/VPK boundaries. UI errors must be visible inline, not console-only.
-- Async UI work uses run-id cancellation (`runRef`) for topbar/showrank uploads to avoid stale validation updates.
+- Prefer explicit errors at archive, source, and VPK boundaries. UI errors must be visible inline, not console-only.
+- Async UI upload work uses run-id cancellation (`runRef`) to avoid stale validation updates.
 - Byte helpers accept `ArrayBuffer`, `Uint8Array`, and views. Preserve `Uint8Array` data; avoid unnecessary string conversions for binary data.
-- Payload patches in `topbarRankPayload.js` are exact string replacements with invariant checks. If source changes, update tests and generated source text together.
+- `showrank_common.js` is immutable integration input and must match canonical ShowRank byte-for-byte before compilation. Never patch, namespace, or selectively port it; Closure applies only to generated payload output.
 - Keep styles neo-brutalist and minimal: CSS variable themes, `prefers-color-scheme` auto dark/light detection, hard borders, square controls, restrained accents, and mobile-first behavior.
 
 ## Important Files
@@ -78,26 +78,28 @@ npx fallow health --score --format json --quiet --explain || true
 - `.fallowrc.json` — Fallow entries/ignores and `audit.gate: "new-only"`.
 - `public/7zz.wasm` — required by browser archive extraction. Keep available at `/Show-rank-merger/7zz.wasm`.
 - `.github/workflows/deploy-pages.yml` — GitHub Pages deployment; syncs latest `topbar_rank`, runs `npm run check`, publishes `dist/` to the `gh-pages` branch.
-- `src/gamebananaSources.js` — canonical GameBanana file IDs, URLs, expected sizes, SHA-256 hashes, archive members, and required VPK paths.
+- `src/gamebananaSources.js` — canonical Top Bar Plus file ID, URL, expected sizes/hashes, archive members, and required VPK paths.
 - `src/archiveExtractor.js` — browser/Node archive member extraction via `7z-wasm`.
-- `src/sourceValidation.js` — archive identity and required-path validation.
-- `src/topbarRankPayload.js` — ShowRank variant generation and Source 2 resource compilation.
-- `src/topbarRankSourceFetch.js`, `src/topbarRankSourceManifest.js` — runtime GitHub source fetcher and canonical `topbar_rank` source path list.
+- `src/sourceValidation.js` — Top Bar archive identity and required-path validation.
+- `src/topbarRankPayload.js` — normal-only Topbar Rank source validation and Source 2 resource compilation.
+- `src/topbarRankSourceFetch.js`, `src/topbarRankSourceManifest.js` — runtime source fetcher, canonical bridge comparison, and 19-file source manifest.
+- `src/showrankClosureExterns.generated.js` — generated browser Closure extern source synchronized from the root variant builder.
 - `src/buildMergedRankVpk.js` — top-level build orchestration.
 - `src/vpkReader.js` / `src/vpkWriter.js` — VPK parse/write primitives.
 - `src/gitCommitInfo.js`, `src/gitCommitInfoRefresh.js`, `src/pages/commit-info.json.js` — commit-version badge data for the header.
-- `scripts/verify-gamebanana-fixtures.mjs` — manual end-to-end verifier for live GameBanana fixtures and all variants.
-- `scripts/sync-topbar-rank-payload.mjs` — fetches `topbar_rank/panorama/**` from `Hantu-Raya/Deadlock-mods-collection@main` and regenerates `src/payload/topbarRankSources.generated.js`.
+- `scripts/verify-gamebanana-fixtures.mjs` — manual end-to-end verifier for the live Top Bar Plus fixture and generated 19-resource VPK.
+- `scripts/sync-topbar-rank-payload.mjs` — fetches `topbar_rank/panorama/**` from `Hantu-Raya/Deadlock-mods-collection@main`, or reads `TOPBAR_RANK_SOURCE_ROOT`, then regenerates bundled files and `src/payload/topbarRankSources.generated.js`.
+- `scripts/sync-showrank-closure-externs.mjs` — reads `SHOWRANK_VARIANT_BUILDER` and regenerates browser externs from `build_showrank_variants.ps1`.
 
 ## Runtime/Tooling Preferences
 
 - Required runtime: Node compatible with Astro 6 lockfile requirements; use Node >= 22.12.0.
 - Package manager: npm only unless intentionally replacing `package-lock.json`.
 - Static deploy base is `/Show-rank-merger/`; use `import.meta.env.BASE_URL` for runtime asset URLs.
-- Pages workflow runs on pushes, manual dispatch, and every 6 hours so hosted bundled fallback source can pick up upstream `topbar_rank` changes. Runtime VPK builds also fetch latest upstream source directly from GitHub. Configure GitHub Pages to deploy from the `gh-pages` branch.
+- Pages workflow runs on pushes, manual dispatch, and every 6 hours so the bundled source follows upstream. Runtime builds fetch current upstream source, use the bundled map only on network failure, and fail closed if the copied bridge differs from canonical ShowRank.
 - Build artifacts (`dist/`, `.astro/`, `.vite/`, `node_modules/`) are ignored and should not be edited.
 - `7z-wasm` is the browser archive extractor. Do not replace it with server-side extraction.
-- Runtime payload JS minification uses Closure ADVANCED in-browser/Node via `google-closure-compiler-js`; keep required-token guards in `topbarRankPayload.js` when changing payload source names or XML-called wrappers.
+- All four generated JavaScript resources use Closure ADVANCED. Preserve byte equality on the input ShowRank source and keep externs/output guards synchronized with the root builder.
 - No TypeScript, ESLint, Prettier, or Playwright config is present. Follow local style and avoid formatting-only churn.
 
 ## Testing & QA
@@ -113,7 +115,7 @@ import assert from "node:assert/strict";
 - Existing coverage:
   - `test/sha256.test.js` — SHA-256 helper.
   - `test/rankMerge.test.js` — path normalization, priority overwrite behavior, VPK writer/reader round trip.
-  - `test/topbarRankPayload.test.js` — all four ShowRank variants, exact patches, required output paths.
-  - `test/sourceValidation.test.js` — missing required paths and SHA-256 variant detection.
-- Keep network checks out of `npm test`. Use `scripts/verify-gamebanana-fixtures.mjs` only when constants, archive extraction, required paths, or merged output behavior changes.
+  - `test/topbarRankPayload.test.js` — 19 current resources, unchanged canonical input, all-script Closure output, wrapper/global preservation, and obsolete-bridge rejection.
+  - `test/topbarRankSourceFetch.test.js` — complete source fetch and canonical ShowRank byte-equality enforcement.
+  - `test/sourceValidation.test.js` — normalized Top Bar required-path validation.
 - Before handing off non-trivial changes, run `npm run check`. For archive/source identity changes, also run the GameBanana verifier. For UI changes, smoke test upload/build/download behavior in a browser at `http://localhost:4321/Show-rank-merger/` and check narrow mobile width for no horizontal overflow.

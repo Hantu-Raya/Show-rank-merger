@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This repository is a static Astro + React app for building the current combined Deadlock `topbar_rank` VPK. Users upload exact Top Bar Plus v40c and ShowRank 2026-07-07 normal archives; the browser verifies both identities and required VPK contents, fetches current normal-only `topbar_rank` source from GitHub, validates its ShowRank role contracts, generates the payload, and downloads the VPK. There is no server-side processing.
+This repository is a static Astro + React app for building the current combined Deadlock `topbar_rank` VPK. Users upload exact Top Bar Plus v40c and one of four ShowRank 2026-07-07 archives; the browser verifies both identities and required VPK contents, fetches current `topbar_rank` base source from GitHub, validates its ShowRank role contracts, applies the selected variant patches, generates the payload, and downloads the VPK. There is no server-side processing.
 
 ## Architecture & Data Flow
 
@@ -14,9 +14,9 @@ This repository is a static Astro + React app for building the current combined 
   3. `archiveExtractor.js` lazy-loads `7z-wasm` and extracts each configured VPK member.
   4. `vpkReader.js` parses the VPK and `validateRequiredPaths` checks normalized required paths.
 - Build flow:
-  1. `buildMergedRankVpk.js` validates Top Bar Plus and ShowRank, fetches current source, falls back to the bundled source on network failure, builds the payload, and writes VPK bytes.
+  1. `buildMergedRankVpk.js` validates Top Bar Plus and ShowRank, fetches current source, falls back to the bundled source on network failure, builds the selected variant payload, and writes VPK bytes.
   2. `topbarRankSourceFetch.js` fetches all 19 public upstream source files; network failures use the bundled source.
-  3. `topbarRankPayload.js` validates normal-only integration contracts, keeps canonical source unchanged, and Closure ADVANCED-minifies all four payload scripts with generated externs and output guards.
+  3. `topbarRankPayload.js` validates base integration contracts, applies minify-ranks and scoreboard-only patches for the detected ShowRank variant, and Closure ADVANCED-minifies all four payload scripts with generated externs and output guards.
   4. `vpkWriter.js` writes embedded VPK v2 output.
 
 ## Key Directories
@@ -115,7 +115,7 @@ import assert from "node:assert/strict";
 - Existing coverage:
   - `test/sha256.test.js` — SHA-256 helper.
   - `test/rankMerge.test.js` — path normalization, priority overwrite behavior, VPK writer/reader round trip.
-  - `test/topbarRankPayload.test.js` — 19 current resources, unchanged canonical input, all-script Closure output, wrapper/global preservation, and obsolete-bridge rejection.
+  - `test/topbarRankPayload.test.js` — 19 current resources, all four variant patches, all-script Closure output, wrapper/global preservation, and obsolete-bridge rejection.
   - `test/topbarRankSourceFetch.test.js` — complete public upstream source fetch behavior.
   - `test/sourceValidation.test.js` — normalized required-path validation and current ShowRank identity detection.
 - Before handing off non-trivial changes, run `npm run check`. For archive/source identity changes, also run the GameBanana verifier. For UI changes, smoke test upload/build/download behavior in a browser at `http://localhost:4321/Show-rank-merger/` and check narrow mobile width for no horizontal overflow.

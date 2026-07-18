@@ -43,7 +43,7 @@ function requiredMessage(topbar, showrank) {
   if (!topbar.bytes || !showrank.bytes) {
     const missing = [];
     if (!topbar.bytes) missing.push(TOPBAR_SOURCE.expectedFileName);
-    if (!showrank.bytes) missing.push(SHOWRANK_SOURCES.showrank_normal.expectedFileName);
+    if (!showrank.bytes) missing.push("one supported ShowRank 2026-07-07 .7z");
     return `Upload ${missing.join(" and ")}.`;
   }
   if (topbar.error || showrank.error) return "Fix the archive validation error before downloading.";
@@ -261,7 +261,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
               </a>
             ) : null}
           </div>
-          <p>Build the latest combined Topbar Rank VPK from exact Top Bar Plus v40c and ShowRank 2026-07-07 downloads. Files stay on your machine.</p>
+          <p>Build the latest combined Topbar Rank VPK from exact Top Bar Plus v40c and one of four ShowRank 2026-07-07 downloads. Files stay on your machine.</p>
         </div>
         <div className="header-actions" aria-label="Project support actions">
           <a className="support-button" href="https://ko-fi.com/hantuaraya" target="_blank" rel="noreferrer" aria-label="Donate on Ko-fi">
@@ -289,16 +289,20 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
           </a>
         </UploadCard>
         <UploadCard
-          title={`Required: ${SHOWRANK_SOURCES.showrank_normal.expectedFileName}`}
-          hint={<>Exact latest normal <a href="https://gamebanana.com/mods/681028" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>ShowRank</a> GameBanana archive. Filename is only a hint; archive SHA-256 decides.</>}
+          title="Required: ShowRank 2026-07-07 .7z"
+          hint={<>One of the four current <a href="https://gamebanana.com/mods/681028" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>ShowRank</a> GameBanana variants. Filename is only a hint; archive SHA-256 decides.</>}
           accept=".7z,application/x-7z-compressed"
           slot={showrank}
           onFile={handleShowrankFile}
         >
-          <p>Do not have the file?</p>
-          <a href={SHOWRANK_SOURCES.showrank_normal.modUrl} target="_blank" rel="noreferrer">
-            Download ShowRank
-          </a>
+          <p>Download one current ShowRank variant:</p>
+          <div className="variant-links">
+            {Object.entries(SHOWRANK_SOURCES).map(([variantId, source]) => (
+              <a key={variantId} href={source.modUrl} target="_blank" rel="noreferrer">
+                {source.expectedFileName}
+              </a>
+            ))}
+          </div>
         </UploadCard>
       </div>
 

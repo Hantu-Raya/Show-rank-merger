@@ -82,7 +82,7 @@ export async function validateShowrankArchive(file, bytesInput) {
   const sha256 = await sha256Hex(bytes);
   const variantId = detectShowrankVariantBySha256(sha256);
   if (!variantId) {
-    throw new Error(`ShowRank archive SHA-256 is not the supported 2026-07-07 normal release: ${sha256}`);
+    throw new Error(`ShowRank archive SHA-256 is not one of the supported 2026-07-07 variants: ${sha256}`);
   }
 
   const source = SHOWRANK_SOURCES[variantId];

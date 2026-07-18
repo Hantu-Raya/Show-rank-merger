@@ -39,7 +39,11 @@ for (const [variantId, source] of Object.entries(SHOWRANK_SOURCES)) {
     showrankArchiveBytes: showrank.bytes
   });
   assert.equal(merged.variantId, variantId);
-  assert.equal(merged.sourceOrigin, "latest");
+  assert.match(merged.filename, new RegExp(variantId));
+  const expectedPatches = [];
+  if (variantId.includes("minify_ranks")) expectedPatches.push("minify-ranks");
+  if (variantId.includes("scoreboard_only_topbar")) expectedPatches.push("scoreboard-only-topbar");
+  assert.deepEqual(merged.validation.payload.appliedPatches, expectedPatches);
   const parsed = parseVpk(merged.bytes);
   const paths = new Set(parsed.files.map((file) => normalizeVpkPath(file.path)));
   for (const path of TOPBAR_RANK_REQUIRED_OUTPUT_PATHS) {

@@ -49,7 +49,10 @@ export async function buildMergedRankVpk({
       // The checked-in payload is the offline fallback.
     }
   }
-  const payload = await buildTopbarRankPayload(sourceTexts ? { sourceTexts } : undefined);
+  const payload = await buildTopbarRankPayload({
+    variantId,
+    ...(sourceTexts ? { sourceTexts } : {})
+  });
   const { files: outputFiles, overwrittenPaths } = mergeFilesWithPriority(baseParsed.files, payload.files);
   const bytes = writeVpk(outputFiles);
 

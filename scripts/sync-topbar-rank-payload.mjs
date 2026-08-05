@@ -2,6 +2,10 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TOPBAR_RANK_SOURCE_BASE_URLS, TOPBAR_RANK_SOURCE_PATHS } from "../src/topbarRankSourceManifest.js";
+import {
+  TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES,
+  TOPBAR_RANK_SOURCE_TEXTS
+} from "../src/payload/topbarRankSources.generated.js";
 
 const EDITION_IDS = Object.keys(TOPBAR_RANK_SOURCE_BASE_URLS);
 const LOCAL_SOURCE_ROOTS = {
@@ -27,12 +31,27 @@ async function fetchText(editionId, path) {
   }
   return response.text();
 }
+function bundledSourceTexts(editionId) {
+  if (editionId === "showrank_barebones") return TOPBAR_RANK_SOURCE_TEXTS;
+  return { ...TOPBAR_RANK_SOURCE_TEXTS, ...TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES };
+}
+
+async function loadEditionSources(editionId) {
+  try {
+    return Object.fromEntries(await Promise.all(
+      TOPBAR_RANK_SOURCE_PATHS.map(async (path) => [path, await fetchText(editionId, path)])
+    ));
+  } catch (error) {
+    if (LOCAL_SOURCE_ROOTS[editionId]) throw error;
+    console.warn(`Could not refresh ${editionId}; keeping bundled payload: ${error.message}`);
+    return bundledSourceTexts(editionId);
+  }
+}
+
 
 const sourceTextsByEdition = {};
 for (const editionId of EDITION_IDS) {
-  sourceTextsByEdition[editionId] = Object.fromEntries(await Promise.all(
-    TOPBAR_RANK_SOURCE_PATHS.map(async (path) => [path, await fetchText(editionId, path)])
-  ));
+  sourceTextsByEdition[editionId] = await loadEditionSources(editionId);
 }
 
 const alertSources = sourceTextsByEdition.showrank_barebones;

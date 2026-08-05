@@ -31,25 +31,30 @@ async function verifyArchive(label, source, requiredPaths) {
   return { bytes, parsed };
 }
 
-const topbar = await verifyArchive("Top Bar Plus v40c", TOPBAR_SOURCE, TOPBAR_REQUIRED_VPK_PATHS);
-for (const [variantId, source] of Object.entries(SHOWRANK_SOURCES)) {
-  const showrank = await verifyArchive(`ShowRank ${variantId}`, source, SHOWRANK_REQUIRED_VPK_PATHS);
+const EDITION_IDS = ["showrank_barebones", "showrank_barebones_no_missing"];
+assert.deepEqual(Object.keys(SHOWRANK_SOURCES), EDITION_IDS);
+
+const topbar = await verifyArchive("Top Bar Plus V40D", TOPBAR_SOURCE, TOPBAR_REQUIRED_VPK_PATHS);
+for (const expectedVariantId of EDITION_IDS) {
+  const source = SHOWRANK_SOURCES[expectedVariantId];
+  const showrank = await verifyArchive(`ShowRank ${expectedVariantId}`, source, SHOWRANK_REQUIRED_VPK_PATHS);
   const merged = await buildMergedRankVpk({
     topbarArchiveBytes: topbar.bytes,
-    showrankArchiveBytes: showrank.bytes
+    showrankArchiveBytes: showrank.bytes,
+    expectedVariantId
   });
-  assert.equal(merged.variantId, variantId);
-  assert.match(merged.filename, new RegExp(variantId));
-  const expectedPatches = [];
-  if (variantId.includes("minify_ranks")) expectedPatches.push("minify-ranks");
-  if (variantId.includes("scoreboard_only_topbar")) expectedPatches.push("scoreboard-only-topbar");
-  assert.deepEqual(merged.validation.payload.appliedPatches, expectedPatches);
+  assert.equal(merged.variantId, expectedVariantId);
+  assert.match(merged.filename, new RegExp(expectedVariantId));
+  assert.equal(merged.validation.payload.files.length, 22);
+  assert.deepEqual(
+    new Set(merged.validation.payload.files.map((file) => normalizeVpkPath(file.path))),
+    new Set(TOPBAR_RANK_REQUIRED_OUTPUT_PATHS.map(normalizeVpkPath))
+  );
   const parsed = parseVpk(merged.bytes);
   const paths = new Set(parsed.files.map((file) => normalizeVpkPath(file.path)));
   for (const path of TOPBAR_RANK_REQUIRED_OUTPUT_PATHS) {
-    assert.equal(paths.has(normalizeVpkPath(path)), true, `${variantId} merged output missing ${path}`);
+    assert.equal(paths.has(normalizeVpkPath(path)), true, `${expectedVariantId} merged output missing ${path}`);
   }
-  assert.equal(paths.has("panorama/scripts/topbar_rank_rank_bridge.vjs_c"), false);
-  console.log(`OK merged ${variantId}: ${parsed.files.length} files`);
+  console.log(`OK merged ${expectedVariantId}: ${parsed.files.length} files`);
 }
 console.log("OK: GameBanana fixtures verified");

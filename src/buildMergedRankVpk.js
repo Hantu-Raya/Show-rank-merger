@@ -14,17 +14,18 @@ function toBytes(input) {
   throw new Error("Expected bytes");
 }
 
-function outputFilenameForMergedVpk(variantId, baseName = "") {
-  if (!baseName) return `topbar-rank-${variantId}_dir.vpk`;
+function outputFilenameForMergedVpk(expectedVariantId, baseName = "") {
+  if (!baseName) return `topbar-rank-${expectedVariantId}_dir.vpk`;
   const clean = String(baseName).replace(/[\\/:*?"<>|]+/g, "_");
   const withExtension = clean.toLowerCase().endsWith(".vpk") ? clean : `${clean}.vpk`;
-  return `topbar-rank-${variantId}-${withExtension}`;
+  return `topbar-rank-${expectedVariantId}-${withExtension}`;
 }
 
 export async function buildMergedRankVpk({
   baseVpkBytes = null,
   topbarArchiveBytes,
   showrankArchiveBytes,
+  expectedVariantId = "",
   baseName = "",
   payloadSourceTexts = null,
   fetchLatestPayloadSource = true
@@ -35,24 +36,33 @@ export async function buildMergedRankVpk({
   );
   const showrankValidation = await validateShowrankArchive(
     { name: "showrank.7z" },
-    toBytes(showrankArchiveBytes)
+    toBytes(showrankArchiveBytes),
+    expectedVariantId
   );
   const variantId = showrankValidation.variantId;
   const baseParsed = baseVpkBytes ? parseVpk(toBytes(baseVpkBytes)) : { files: [] };
-  let sourceTexts = payloadSourceTexts;
-  let sourceOrigin = sourceTexts ? "provided" : "bundled";
-  if (!sourceTexts && fetchLatestPayloadSource) {
+  let payload;
+  let sourceOrigin = payloadSourceTexts ? "provided" : "bundled";
+  if (payloadSourceTexts) {
+    payload = await buildTopbarRankPayload({
+      expectedVariantId: variantId,
+      sourceTexts: payloadSourceTexts
+    });
+  } else if (fetchLatestPayloadSource) {
     try {
-      sourceTexts = await fetchLatestTopbarRankSourceTexts();
+      const latestSourceTexts = await fetchLatestTopbarRankSourceTexts({ expectedVariantId: variantId });
+      payload = await buildTopbarRankPayload({
+        expectedVariantId: variantId,
+        sourceTexts: latestSourceTexts
+      });
       sourceOrigin = "latest";
     } catch {
-      // The checked-in payload is the offline fallback.
+      // A missing or incompatible upstream source uses the checked-in payload.
+      payload = await buildTopbarRankPayload({ expectedVariantId: variantId });
     }
+  } else {
+    payload = await buildTopbarRankPayload({ expectedVariantId: variantId });
   }
-  const payload = await buildTopbarRankPayload({
-    variantId,
-    ...(sourceTexts ? { sourceTexts } : {})
-  });
   const { files: outputFiles, overwrittenPaths } = mergeFilesWithPriority(baseParsed.files, payload.files);
   const bytes = writeVpk(outputFiles);
 

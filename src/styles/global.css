@@ -145,7 +145,7 @@ button {
   color: var(--muted);
   font-weight: 700;
 }
-.download-help a, .link-toggle {
+.download-help a {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -157,14 +157,16 @@ button {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-.link-toggle[aria-expanded="true"] {
+.edition-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+.edition-toggle[aria-pressed="true"] {
   background: var(--accent);
   color: var(--accent-strong);
-}
-.variant-links {
-  display: grid;
-  min-width: 0;
-  gap: 8px;
 }
 .status-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 14px; min-width: 0; font-size: 0.95rem; }
 .status-list span {
@@ -255,7 +257,7 @@ button {
   .commit-version-link { width: 100%; }
   .grid, .result-grid { grid-template-columns: 1fr; }
   .header, .card, .result-panel { box-shadow: 4px 4px 0 var(--border); }
-  .download-help a, .link-toggle, .support-button, .commit-version-link { box-shadow: none; }
+  .download-help a, .edition-toggle, .support-button, .commit-version-link { box-shadow: none; }
   .result-grid span, .result-grid strong { border-bottom: 2px solid var(--border); }
   .result-grid strong:last-child { border-bottom: 0; }
 }

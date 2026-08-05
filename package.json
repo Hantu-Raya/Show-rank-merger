@@ -10,14 +10,12 @@
     "preview": "astro preview",
     "test": "node --test",
     "sync:payload": "node scripts/sync-topbar-rank-payload.mjs",
-    "sync:externs": "node scripts/sync-showrank-closure-externs.mjs",
     "check": "npm test && npm run build"
   },
   "dependencies": {
     "@astrojs/react": "^5.0.4",
     "7z-wasm": "^1.2.0",
     "astro": "^6.3.1",
-    "google-closure-compiler-js": "^20200719.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   }

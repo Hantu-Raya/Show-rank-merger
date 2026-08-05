@@ -27,26 +27,14 @@ function assertSha256(actual, expected, label) {
   }
 }
 
-async function extractCompatibleTopbarVpk(bytes, archiveName) {
-  let lastError = null;
-  for (const memberName of TOPBAR_SOURCE.compatibleArchiveMembers || [TOPBAR_SOURCE.archiveMember]) {
-    try {
-      const vpkBytes = await extractArchiveMember(bytes, archiveName, memberName);
-      const vpkSha256 = await sha256Hex(vpkBytes);
-      if (vpkSha256 !== TOPBAR_SOURCE.expectedVpkSha256) {
-        throw new Error(`Top Bar Plus embedded VPK SHA-256 mismatch in ${memberName}: expected ${TOPBAR_SOURCE.expectedVpkSha256}, got ${vpkSha256}`);
-      }
-      return { vpkBytes, archiveMember: memberName, vpkSha256 };
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError || new Error("Top Bar Plus archive does not contain a supported VPK member");
+async function extractTopbarVpk(bytes, archiveName) {
+  const vpkBytes = await extractArchiveMember(bytes, archiveName, TOPBAR_SOURCE.archiveMember);
+  const vpkSha256 = await sha256Hex(vpkBytes);
+  assertSha256(vpkSha256, TOPBAR_SOURCE.expectedVpkSha256, "Top Bar Plus embedded VPK");
+  return { vpkBytes, archiveMember: TOPBAR_SOURCE.archiveMember, vpkSha256 };
 }
 
 function assertExactTopbarArchive(bytes, sha256) {
-  if (bytes.byteLength === TOPBAR_SOURCE.expectedSize && sha256 === TOPBAR_SOURCE.expectedSha256) return;
-  if (TOPBAR_SOURCE.expectedVpkSha256) return;
   assertSize(bytes, TOPBAR_SOURCE.expectedSize, "Top Bar Plus archive");
   assertSha256(sha256, TOPBAR_SOURCE.expectedSha256, "Top Bar Plus archive");
 }
@@ -61,7 +49,7 @@ export async function validateTopbarArchive(file, bytesInput) {
   const bytes = toUint8Array(bytesInput, "Archive input");
   const sha256 = await sha256Hex(bytes);
   assertExactTopbarArchive(bytes, sha256);
-  const { vpkBytes, archiveMember, vpkSha256 } = await extractCompatibleTopbarVpk(bytes, displayName(file));
+  const { vpkBytes, archiveMember, vpkSha256 } = await extractTopbarVpk(bytes, displayName(file));
   const parsed = parseVpk(vpkBytes);
   const { missing } = validateRequiredPaths(parsed.files, TOPBAR_REQUIRED_VPK_PATHS);
   if (missing.length > 0) {
@@ -77,12 +65,15 @@ export function detectShowrankVariantBySha256(sha256) {
   return "";
 }
 
-export async function validateShowrankArchive(file, bytesInput) {
+export async function validateShowrankArchive(file, bytesInput, expectedVariantId = "") {
   const bytes = toUint8Array(bytesInput, "Archive input");
   const sha256 = await sha256Hex(bytes);
   const variantId = detectShowrankVariantBySha256(sha256);
   if (!variantId) {
-    throw new Error(`ShowRank archive SHA-256 is not one of the supported 2026-07-07 variants: ${sha256}`);
+    throw new Error(`ShowRank archive SHA-256 is not one of the supported Barebones editions: ${sha256}`);
+  }
+  if (expectedVariantId && variantId !== expectedVariantId) {
+    throw new Error(`ShowRank archive edition mismatch: expected ${expectedVariantId}, got ${variantId}`);
   }
 
   const source = SHOWRANK_SOURCES[variantId];

@@ -8,6 +8,10 @@ import { sha256Hex } from "../sha256.js";
 import { validateShowrankArchive, validateTopbarArchive } from "../sourceValidation.js";
 
 const EMPTY_RESULT = { bytes: null, filename: "", overwrittenPaths: [], fileCount: 0, variantId: "", status: "", error: "" };
+const SHOWRANK_EDITION_LABELS = {
+  showrank_barebones: "Barebones — missing alerts on",
+  showrank_barebones_no_missing: "Barebones — missing alerts off"
+};
 
 function formatBytes(bytes) {
   const value = Number(bytes || 0);
@@ -39,11 +43,11 @@ function initialState() {
   };
 }
 
-function requiredMessage(topbar, showrank) {
+function requiredMessage(topbar, showrank, selectedEditionLabel) {
   if (!topbar.bytes || !showrank.bytes) {
     const missing = [];
     if (!topbar.bytes) missing.push(TOPBAR_SOURCE.expectedFileName);
-    if (!showrank.bytes) missing.push("one supported ShowRank 2026-07-07 .7z");
+    if (!showrank.bytes) missing.push(`${selectedEditionLabel} ShowRank archive`);
     return `Upload ${missing.join(" and ")}.`;
   }
   if (topbar.error || showrank.error) return "Fix the archive validation error before downloading.";
@@ -119,7 +123,11 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
   const [appState, setAppState] = useState(initialState);
   const { topbar, showrank, result, isBusy } = appState;
   const [freshGitCommitInfo, setFreshGitCommitInfo] = useState(null);
-  const helperText = requiredMessage(topbar, showrank);
+  const [missingAlertsEnabled, setMissingAlertsEnabled] = useState(true);
+  const expectedVariantId = missingAlertsEnabled ? "showrank_barebones" : "showrank_barebones_no_missing";
+  const selectedEditionLabel = SHOWRANK_EDITION_LABELS[expectedVariantId];
+  const selectedShowrankSource = SHOWRANK_SOURCES[expectedVariantId];
+  const helperText = requiredMessage(topbar, showrank, selectedEditionLabel);
   const canBuild = Boolean(topbar.bytes && showrank.bytes && !topbar.error && !showrank.error && !isBusy);
   const activeGitCommitInfo = freshGitCommitInfo || gitCommitInfo;
 
@@ -162,7 +170,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
             sha256: validation.sha256,
             parsed: validation.parsed,
             pathCount: TOPBAR_REQUIRED_VPK_PATHS.length,
-            status: "Reading VPK…"
+            status: "Validated Top Bar Plus V40D"
           });
         }
       }
@@ -187,7 +195,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
       const sha256 = await sha256Hex(bytes);
       if (run === showrankRunRef.current) {
         patchSlot(setAppState, "showrank", { bytes, sha256, status: "Extracting ShowRank VPK…" });
-        const validation = await validateShowrankArchive(file, bytes);
+        const validation = await validateShowrankArchive(file, bytes, expectedVariantId);
         if (run === showrankRunRef.current) {
           patchSlot(setAppState, "showrank", {
             bytes,
@@ -195,7 +203,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
             parsed: validation.parsed,
             variantId: validation.variantId,
             pathCount: SHOWRANK_REQUIRED_VPK_PATHS.length,
-            status: `Detected ${validation.variantId}`
+            status: `Validated ${SHOWRANK_EDITION_LABELS[validation.variantId]}`
           });
         }
       }
@@ -208,17 +216,24 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
 
 
 
+  function handleMissingAlertsToggle() {
+    ++showrankRunRef.current;
+    setMissingAlertsEnabled((enabled) => !enabled);
+    setAppState((state) => ({ ...state, showrank: emptySlot(), result: EMPTY_RESULT }));
+  }
+
   async function handleBuild() {
     if (!canBuild) return;
     if (result.bytes && result.filename) {
       downloadBytes(result.filename, result.bytes);
       return;
     }
-    setAppState((state) => ({ ...state, isBusy: true, result: { ...EMPTY_RESULT, status: "Fetching latest topbar_rank source and building VPK…" } }));
+    setAppState((state) => ({ ...state, isBusy: true, result: { ...EMPTY_RESULT, status: `Fetching latest ${selectedEditionLabel} source and building VPK…` } }));
     try {
       const merged = await buildMergedRankVpk({
         topbarArchiveBytes: topbar.bytes,
-        showrankArchiveBytes: showrank.bytes
+        showrankArchiveBytes: showrank.bytes,
+        expectedVariantId
       });
       downloadBytes(merged.filename, merged.bytes);
       setAppState((state) => ({
@@ -229,7 +244,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
           overwrittenPaths: merged.overwrittenPaths,
           fileCount: merged.outputFiles.length,
           variantId: merged.variantId,
-          status: `Built and downloaded ${merged.outputFiles.length} files from ${merged.sourceOrigin} source (${formatBytes(merged.bytes.byteLength)}).`,
+          status: `Built and downloaded ${merged.outputFiles.length} ${selectedEditionLabel} files from ${merged.sourceOrigin} source (${formatBytes(merged.bytes.byteLength)}).`,
           error: ""
         }
       }));
@@ -261,7 +276,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
               </a>
             ) : null}
           </div>
-          <p>Build the latest combined Topbar Rank VPK from exact Top Bar Plus v40c and one of four ShowRank 2026-07-07 downloads. Files stay on your machine.</p>
+          <p>Build the latest combined Topbar Rank VPK from exact Top Bar Plus V40D and one of two current ShowRank Barebones editions. Files stay on your machine.</p>
         </div>
         <div className="header-actions" aria-label="Project support actions">
           <a className="support-button" href="https://ko-fi.com/hantuaraya" target="_blank" rel="noreferrer" aria-label="Donate on Ko-fi">
@@ -278,7 +293,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
       <div className="grid">
         <UploadCard
           title={`Required: ${TOPBAR_SOURCE.expectedFileName}`}
-          hint={<>Exact current GameBanana <a href="https://gamebanana.com/mods/623518" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Top Bar Plus</a> archive. Filename is only a hint; embedded VPK SHA-256 decides.</>}
+          hint={<>Exact current GameBanana <a href="https://gamebanana.com/mods/623518" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Top Bar Plus</a> archive. Archive and embedded VPK SHA-256 must match.</>}
           accept=".zip,application/zip"
           slot={topbar}
           onFile={handleTopbarFile}
@@ -289,20 +304,27 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
           </a>
         </UploadCard>
         <UploadCard
-          title="Required: ShowRank 2026-07-07 .7z"
-          hint={<>One of the four current <a href="https://gamebanana.com/mods/681028" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>ShowRank</a> GameBanana variants. Filename is only a hint; archive SHA-256 decides.</>}
+          key={expectedVariantId}
+          title={`Required: ShowRank ${selectedEditionLabel}`}
+          hint={<>Selected current <a href="https://gamebanana.com/mods/681028" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>ShowRank Barebones</a> edition. Archive and embedded VPK SHA-256 must match.</>}
           accept=".7z,application/x-7z-compressed"
           slot={showrank}
           onFile={handleShowrankFile}
         >
-          <p>Download one current ShowRank variant:</p>
-          <div className="variant-links">
-            {Object.entries(SHOWRANK_SOURCES).map(([variantId, source]) => (
-              <a key={variantId} href={source.modUrl} target="_blank" rel="noreferrer">
-                {source.expectedFileName}
-              </a>
-            ))}
-          </div>
+          <button
+            className="edition-toggle"
+            type="button"
+            aria-pressed={missingAlertsEnabled}
+            disabled={isBusy}
+            onClick={handleMissingAlertsToggle}
+          >
+            <span>Missing alerts</span>
+            <strong>{missingAlertsEnabled ? "ON" : "OFF"}</strong>
+          </button>
+          <p>Download selected ShowRank edition:</p>
+          <a href={selectedShowrankSource.modUrl} target="_blank" rel="noreferrer">
+            {selectedShowrankSource.expectedFileName}
+          </a>
         </UploadCard>
       </div>
 
@@ -311,7 +333,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
         <div className="result-grid">
           <span>Top Bar SHA-256</span><strong>{topbar.sha256 || "Not validated"}</strong>
           <span>ShowRank SHA-256</span><strong>{showrank.sha256 || "Not validated"}</strong>
-          <span>ShowRank variant</span><strong>{showrank.variantId || result.variantId || "Not detected"}</strong>
+          <span>ShowRank edition</span><strong>{SHOWRANK_EDITION_LABELS[showrank.variantId || result.variantId] || "Not detected"}</strong>
           <span>Generated files</span><strong>{result.fileCount || "Not built"}</strong>
         </div>
         {result.status ? <p className="success">{result.status}</p> : <p className="helper">{helperText}</p>}

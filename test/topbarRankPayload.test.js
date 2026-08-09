@@ -1,6 +1,6 @@
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import assert from "node:assert/strict";
-
 import { extractPanoramaLayoutSource, extractPanoramaStyleSource, extractTextResource } from "../src/source2ResourceReader.js";
 import { normalizeVpkPath } from "../src/rankMerge.js";
 import {
@@ -35,22 +35,22 @@ function sourceTextForResource(payload, sourcePath) {
   return extractPanoramaStyleSource(file.bytes);
 }
 
-test("source manifest defines exactly the two Barebones editions and 22 resources", () => {
+test("source manifest defines exactly the two Barebones editions and 23 resources", () => {
   assert.deepEqual(Object.keys(TOPBAR_RANK_SOURCE_BASE_URLS), EDITION_IDS);
-  assert.equal(TOPBAR_RANK_SOURCE_PATHS.length, 22);
-  assert.deepEqual(Object.keys(TOPBAR_RANK_SOURCE_TEXTS), TOPBAR_RANK_SOURCE_PATHS);
-  assert.equal(Object.keys(TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES).length, 4);
+  assert.equal(TOPBAR_RANK_SOURCE_PATHS.length, 23);
+  assert.deepEqual(new Set(Object.keys(TOPBAR_RANK_SOURCE_TEXTS)), new Set(TOPBAR_RANK_SOURCE_PATHS));
+  assert.equal(Object.keys(TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES).length, 5);
   assert.equal(
     Object.keys(TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES).every((path) => TOPBAR_RANK_SOURCE_PATHS.includes(path)),
     true
   );
 });
 
-test("each edition produces exactly the 22 declared binary resources", async () => {
+test("each edition produces exactly the 23 declared binary resources", async () => {
   for (const expectedVariantId of EDITION_IDS) {
     const payload = await buildTopbarRankPayload({ expectedVariantId });
-    assert.deepEqual(Object.keys(payload.sourceTexts), TOPBAR_RANK_SOURCE_PATHS);
-    assert.equal(payload.files.length, 22);
+    assert.deepEqual(new Set(Object.keys(payload.sourceTexts)), new Set(TOPBAR_RANK_SOURCE_PATHS));
+    assert.equal(payload.files.length, 23);
     assert.deepEqual(
       new Set(payload.files.map((file) => normalizeVpkPath(file.path))),
       new Set(TOPBAR_RANK_REQUIRED_OUTPUT_PATHS.map(normalizeVpkPath))
@@ -63,10 +63,53 @@ test("each edition produces exactly the 22 declared binary resources", async () 
   }
 });
 
-test("edition scripts preserve their source text verbatim in versioned text resources", async () => {
+test("bundled source texts exactly match both local Topbar Rank source trees", async () => {
+  const sourceRoots = {
+    showrank_barebones: "../../topbar_rank/",
+    showrank_barebones_no_missing: "../../topbar_rank_no_missing/"
+  };
+
+  for (const [editionId, sourceRoot] of Object.entries(sourceRoots)) {
+    const payload = await buildTopbarRankPayload({ expectedVariantId: editionId });
+    for (const sourcePath of TOPBAR_RANK_SOURCE_PATHS) {
+      const expected = await readFile(new URL(`${sourceRoot}${sourcePath}`, import.meta.url), "utf8");
+      assert.equal(payload.sourceTexts[sourcePath], expected, `${editionId} bundled ${sourcePath} is stale`);
+    }
+  }
+});
+
+test("only Barebones runtime is Closure-minified before it becomes a vjs_c resource", async () => {
   for (const expectedVariantId of EDITION_IDS) {
     const payload = await buildTopbarRankPayload({ expectedVariantId });
-    for (const sourcePath of TOPBAR_RANK_SOURCE_PATHS.filter((path) => path.endsWith(".js"))) {
+    const sourcePath = "panorama/scripts/showrank_barebones.js";
+    const compiledRuntime = sourceTextForResource(payload, sourcePath);
+    const sourceRuntime = payload.sourceTexts[sourcePath];
+    const requiredApis = [
+      "ShowRankBarebonesRefresh",
+      "ShowRankBarebonesOpenStatlocker",
+      "ShowRankBarebonesCopyAccount",
+      "ShowRankBarebonesEscapeOpen",
+      "ShowRankBarebonesEscapeOut"
+    ];
+    if (expectedVariantId === "showrank_barebones") requiredApis.push("ShowRankBarebonesMissingWindowExpired");
+
+    assert.equal(resourceVersion(fileByPath(payload, sourcePath.replace(/\.js$/, ".vjs_c")).bytes), 4);
+    assert.ok(compiledRuntime.length < sourceRuntime.length, `${expectedVariantId} runtime was not reduced`);
+    for (const api of requiredApis) assert.ok(compiledRuntime.includes(api), `${expectedVariantId} lost ${api}`);
+    assert.equal(payload.closureMetadata.compilationLevel, "ADVANCED");
+    assert.equal(payload.closureMetadata.inputLanguage, "ECMASCRIPT5");
+    assert.equal(payload.closureMetadata.outputLanguage, "ECMASCRIPT5");
+    assert.equal(payload.closureMetadata.outputBytes < payload.closureMetadata.sourceBytes, true);
+    assert.match(payload.closureMetadata.externs, /^var \$;/m);
+  }
+});
+
+test("non-Barebones scripts retain their readable source text verbatim", async () => {
+  for (const expectedVariantId of EDITION_IDS) {
+    const payload = await buildTopbarRankPayload({ expectedVariantId });
+    for (const sourcePath of TOPBAR_RANK_SOURCE_PATHS.filter(
+      (path) => path.endsWith(".js") && path !== "panorama/scripts/showrank_barebones.js"
+    )) {
       const file = fileByPath(payload, sourcePath.replace(/\.js$/, ".vjs_c"));
       assert.equal(resourceVersion(file.bytes), 4, `${sourcePath} has the wrong resource version`);
       assert.equal(extractTextResource(file.bytes), payload.sourceTexts[sourcePath], `${sourcePath} was transformed`);
@@ -83,6 +126,7 @@ test("generated resources retain required native, TopBarPlus, and Barebones inte
     "panorama/layout/hud_escape_menu.xml": ["CitadelResumePlaying()", "showrank_barebones.vjs_c"],
     "panorama/layout/players_list_entry.xml": ["ShowRankBarebonesPlayerListRankImage"],
     "panorama/layout/profile_card.xml": ["ShowRankBarebonesRankImage"],
+    "panorama/layout/citadel_db_page_profile.xml": ["ShowRankBarebonesProfilePageRankImage", "showrank_barebones.vjs_c"],
     "panorama/scripts/showrank_barebones.js": ["ShowRankBarebonesEscapeOpen", "ShowRankBarebonesOpenStatlocker"],
     "panorama/scripts/recent_purchases_redux_data.js": ["MOD_ICONS"]
   };

@@ -5,6 +5,7 @@ export const TOPBAR_RANK_SOURCE_BASE_URLS = {
 
 export const TOPBAR_RANK_SOURCE_PATHS = [
   "panorama/layout/citadel_hud_hero_shop.xml",
+  "panorama/layout/citadel_db_page_profile.xml",
   "panorama/layout/citadel_hud_top_bar.xml",
   "panorama/layout/citadel_hud_top_bar_player.xml",
   "panorama/layout/citadel_ui_context_menu_player.xml",

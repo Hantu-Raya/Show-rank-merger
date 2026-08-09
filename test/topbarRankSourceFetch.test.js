@@ -6,7 +6,7 @@ import { TOPBAR_RANK_SOURCE_BASE_URLS, TOPBAR_RANK_SOURCE_PATHS } from "../src/t
 
 const EDITION_IDS = ["showrank_barebones", "showrank_barebones_no_missing"];
 
-test("fetchLatestTopbarRankSourceTexts fetches the selected edition's complete 22-resource manifest", async () => {
+test("fetchLatestTopbarRankSourceTexts fetches the selected edition's complete 23-resource manifest", async () => {
   const originalFetch = globalThis.fetch;
   const requested = [];
   globalThis.fetch = async (url, options) => {
@@ -20,7 +20,7 @@ test("fetchLatestTopbarRankSourceTexts fetches the selected edition's complete 2
       requested.length = 0;
       const sourceTexts = await fetchLatestTopbarRankSourceTexts({ expectedVariantId, cacheKey: "test" });
       assert.deepEqual(Object.keys(sourceTexts), TOPBAR_RANK_SOURCE_PATHS);
-      assert.equal(requested.length, 22);
+      assert.equal(requested.length, 23);
       assert.equal(requested.every((request) => request.cache === "no-store"), true);
       for (const path of TOPBAR_RANK_SOURCE_PATHS) {
         assert.equal(

@@ -8,7 +8,7 @@ Hosted app: <https://hantu-raya.github.io/Show-rank-merger/>
 
 - Validates the exact Top Bar Plus V40D archive and the selected current ShowRank Barebones alert or no-missing GameBanana archive.
 - Fetches the current `topbar_rank/panorama/**` integrated source when missing alerts are ON or `topbar_rank_no_missing/panorama/**` when they are OFF.
-- Validates and compiles all 22 Source 2 resources in the selected integrated payload.
+- Validates and compiles all 23 Source 2 resources in the selected integrated payload, Closure ADVANCED-minifying `showrank_barebones.js`.
 - Falls back to the matching bundled source when GitHub is unavailable.
 - Keeps files local. There is no server-side archive processing.
 
@@ -63,7 +63,7 @@ Run the standard local gate:
 npm run check
 ```
 
-Verify the live Top Bar Plus V40D and both ShowRank Barebones fixtures, then generate both 22-resource VPKs:
+Verify the live Top Bar Plus V40D and both ShowRank Barebones fixtures, then generate both 23-resource VPKs:
 
 ```bash
 node scripts/verify-gamebanana-fixtures.mjs

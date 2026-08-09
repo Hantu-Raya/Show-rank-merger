@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TOPBAR_RANK_SOURCE_BASE_URLS, TOPBAR_RANK_SOURCE_PATHS } from "../src/topbarRankSourceManifest.js";
@@ -62,22 +62,48 @@ const noMissingOverrides = Object.fromEntries(
     .map((path) => [path, noMissingSources[path]])
 );
 
-await rm(OUTPUT_ROOT, { recursive: true, force: true });
-for (const path of TOPBAR_RANK_SOURCE_PATHS) {
-  const outputUrl = new URL(path, OUTPUT_ROOT);
-  await mkdir(dirname(fileURLToPath(outputUrl)), { recursive: true });
-  await writeFile(outputUrl, alertSources[path]);
-  console.log(`synced ${path}`);
+const outputRootPath = fileURLToPath(OUTPUT_ROOT).replace(/[\\/]+$/, "");
+const generatedOutputPath = fileURLToPath(GENERATED_OUTPUT);
+const stagedOutputRoot = await mkdtemp(`${outputRootPath}.stage-`);
+const stagedGeneratedOutput = `${generatedOutputPath}.stage-${process.pid}-${Date.now()}`;
+
+async function replaceAtomically(stagedPath, destinationPath) {
+  const backupPath = `${destinationPath}.previous`;
+  await rm(backupPath, { recursive: true, force: true });
+  await rename(destinationPath, backupPath);
+  try {
+    await rename(stagedPath, destinationPath);
+  } catch (error) {
+    await rename(backupPath, destinationPath);
+    throw error;
+  }
+  await rm(backupPath, { recursive: true, force: true });
 }
 
-let generated = "export const TOPBAR_RANK_SOURCE_TEXTS = {\n";
-for (const path of TOPBAR_RANK_SOURCE_PATHS) {
-  generated += `  ${JSON.stringify(path)}: ${JSON.stringify(alertSources[path])},\n`;
+try {
+  for (const path of TOPBAR_RANK_SOURCE_PATHS) {
+    const outputPath = join(stagedOutputRoot, path);
+    await mkdir(dirname(outputPath), { recursive: true });
+    await writeFile(outputPath, alertSources[path]);
+  }
+
+  let generated = "export const TOPBAR_RANK_SOURCE_TEXTS = {\n";
+  for (const path of TOPBAR_RANK_SOURCE_PATHS) {
+    generated += `  ${JSON.stringify(path)}: ${JSON.stringify(alertSources[path])},\n`;
+  }
+  generated += "};\n\nexport const TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES = {\n";
+  for (const path of Object.keys(noMissingOverrides)) {
+    generated += `  ${JSON.stringify(path)}: ${JSON.stringify(noMissingOverrides[path])},\n`;
+  }
+  generated += "};\n";
+  await writeFile(stagedGeneratedOutput, generated);
+
+  await replaceAtomically(stagedOutputRoot, outputRootPath);
+  await replaceAtomically(stagedGeneratedOutput, generatedOutputPath);
+} catch (error) {
+  await rm(stagedOutputRoot, { recursive: true, force: true });
+  await rm(stagedGeneratedOutput, { force: true });
+  throw error;
 }
-generated += "};\n\nexport const TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES = {\n";
-for (const path of Object.keys(noMissingOverrides)) {
-  generated += `  ${JSON.stringify(path)}: ${JSON.stringify(noMissingOverrides[path])},\n`;
-}
-generated += "};\n";
-await writeFile(GENERATED_OUTPUT, generated);
-console.log(`wrote ${GENERATED_OUTPUT.pathname}`);
+
+console.log(`synced ${TOPBAR_RANK_SOURCE_PATHS.length} paths and wrote ${GENERATED_OUTPUT.pathname}`);

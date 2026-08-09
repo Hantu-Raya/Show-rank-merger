@@ -228,7 +228,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
       downloadBytes(result.filename, result.bytes);
       return;
     }
-    setAppState((state) => ({ ...state, isBusy: true, result: { ...EMPTY_RESULT, status: `Fetching latest ${selectedEditionLabel} source and building VPK…` } }));
+    setAppState((state) => ({ ...state, isBusy: true, result: { ...EMPTY_RESULT, status: `Fetching latest ${selectedEditionLabel} source and Closure ADVANCED-minifying ShowRank…` } }));
     try {
       const merged = await buildMergedRankVpk({
         topbarArchiveBytes: topbar.bytes,
@@ -244,7 +244,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
           overwrittenPaths: merged.overwrittenPaths,
           fileCount: merged.outputFiles.length,
           variantId: merged.variantId,
-          status: `Built and downloaded ${merged.outputFiles.length} ${selectedEditionLabel} files from ${merged.sourceOrigin} source (${formatBytes(merged.bytes.byteLength)}).`,
+          status: `Built and downloaded ${merged.outputFiles.length} current ${selectedEditionLabel} files from ${merged.sourceOrigin} source; ShowRank Closure ADVANCED ${merged.validation.payload.closureMetadata.sourceBytes.toLocaleString()} → ${merged.validation.payload.closureMetadata.outputBytes.toLocaleString()} bytes (${formatBytes(merged.bytes.byteLength)} VPK).`,
           error: ""
         }
       }));

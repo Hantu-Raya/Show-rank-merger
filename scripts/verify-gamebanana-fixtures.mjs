@@ -45,7 +45,7 @@ for (const expectedVariantId of EDITION_IDS) {
   });
   assert.equal(merged.variantId, expectedVariantId);
   assert.match(merged.filename, new RegExp(expectedVariantId));
-  assert.equal(merged.validation.payload.files.length, 22);
+  assert.equal(merged.validation.payload.files.length, 23);
   assert.deepEqual(
     new Set(merged.validation.payload.files.map((file) => normalizeVpkPath(file.path))),
     new Set(TOPBAR_RANK_REQUIRED_OUTPUT_PATHS.map(normalizeVpkPath))

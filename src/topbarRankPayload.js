@@ -47,6 +47,7 @@ function validateSourceInvariants(sourceTexts, expectedVariantId) {
   const escapeMenu = sourceTexts["panorama/layout/hud_escape_menu.xml"];
   const playerList = sourceTexts["panorama/layout/players_list_entry.xml"];
   const profileCard = sourceTexts["panorama/layout/profile_card.xml"];
+  const dashboardProfile = sourceTexts["panorama/layout/citadel_db_page_profile.xml"];
   const heroShop = sourceTexts["panorama/layout/citadel_hud_hero_shop.xml"];
   const barebonesRuntime = sourceTexts["panorama/scripts/showrank_barebones.js"];
   const modIcons = sourceTexts["panorama/scripts/recent_purchases_redux_data.js"];
@@ -67,6 +68,10 @@ function validateSourceInvariants(sourceTexts, expectedVariantId) {
   ], "citadel_hud_hero_shop.xml");
   requireTokens(playerList, ["ShowRankBarebonesPlayerListRankImage"], "players_list_entry.xml");
   requireTokens(profileCard, ["ShowRankBarebonesRankImage"], "profile_card.xml");
+  requireTokens(dashboardProfile, [
+    "ShowRankBarebonesProfilePage",
+    "showrank_barebones.vjs_c"
+  ], "citadel_db_page_profile.xml");
   requireTokens(escapeMenu, ["CitadelResumePlaying()", "showrank_barebones.vjs_c"], "hud_escape_menu.xml");
   requireTokens(barebonesRuntime, [
     "ShowRankBarebonesEscapeOpen",
@@ -94,6 +99,70 @@ function outputPathForSource(path) {
   throw new Error(`Unsupported topbar_rank source type: ${path}`);
 }
 
+const BAREBONES_PUBLIC_APIS = [
+  "ShowRankBarebonesRefresh",
+  "ShowRankBarebonesOpenStatlocker",
+  "ShowRankBarebonesCopyAccount",
+  "ShowRankBarebonesEscapeOpen",
+  "ShowRankBarebonesEscapeOut"
+];
+async function compileBarebonesRuntime(source, expectedVariantId) {
+  const closureCompilerModule = await import("google-closure-compiler-js");
+  const compile = closureCompilerModule.compile
+    || closureCompilerModule.default?.compile
+    || closureCompilerModule.default;
+  if (typeof compile !== "function") {
+    throw new Error("google-closure-compiler-js does not expose a compiler function");
+  }
+  const propertyNames = [...new Set(
+    [...source.matchAll(/\.([A-Za-z_$][A-Za-z0-9_$]*)/g)].map((match) => match[1])
+  )].sort();
+  const externs = [
+    "var $;",
+    "function DismissAllContextMenus() {}",
+    "function DropInputFocus() {}",
+    ...propertyNames.map((propertyName) => `Object.prototype.${propertyName};`)
+  ].join("\n");
+  const publicApis = expectedVariantId === "showrank_barebones"
+    ? [...BAREBONES_PUBLIC_APIS, "ShowRankBarebonesMissingWindowExpired"]
+    : BAREBONES_PUBLIC_APIS;
+  const result = await compile({
+    compilationLevel: "ADVANCED",
+    externs: [{ path: "showrank_barebones.externs.js", src: externs }],
+    jsCode: [{ path: "showrank_barebones.js", src: source }],
+    languageIn: "ECMASCRIPT5",
+    languageOut: "ECMASCRIPT5",
+    warningLevel: "QUIET"
+  });
+  if (result.errors?.length > 0) {
+    throw new Error(`Closure Compiler failed: ${result.errors.map((error) => error.description || String(error)).join("; ")}`);
+  }
+  const compiledSource = result.compiledCode;
+  if (typeof compiledSource !== "string" || compiledSource.length === 0) {
+    throw new Error("Closure Compiler did not produce a showrank_barebones runtime");
+  }
+  if (compiledSource.length >= source.length) {
+    throw new Error(`Closure Compiler did not reduce showrank_barebones.js: ${compiledSource.length} >= ${source.length}`);
+  }
+  for (const publicApi of publicApis) {
+    if (!compiledSource.includes(publicApi)) {
+      throw new Error(`Closure Compiler removed public Barebones API: ${publicApi}`);
+    }
+  }
+  return {
+    source: compiledSource,
+    metadata: {
+      compilationLevel: "ADVANCED",
+      externs,
+      inputLanguage: "ECMASCRIPT5",
+      outputLanguage: "ECMASCRIPT5",
+      sourceBytes: new TextEncoder().encode(source).byteLength,
+      outputBytes: new TextEncoder().encode(compiledSource).byteLength,
+      publicApis
+    }
+  };
+}
+
 function compileSource(path, text) {
   if (path.endsWith(".xml")) return compilePanoramaLayoutResource(text);
   if (path.endsWith(".js")) return compileTextResource(text, { resourceVersion: 4 });
@@ -106,13 +175,20 @@ export async function buildTopbarRankPayload({
   sourceTexts = bundledSourceTextsForEdition(expectedVariantId)
 } = {}) {
   validateSourceInvariants(sourceTexts, expectedVariantId);
+  const barebonesRuntime = await compileBarebonesRuntime(
+    sourceTexts["panorama/scripts/showrank_barebones.js"],
+    expectedVariantId
+  );
   const files = await Promise.all(TOPBAR_RANK_SOURCE_PATHS.map(async (path) => ({
     path: outputPathForSource(path),
-    bytes: await compileSource(path, sourceTexts[path])
+    bytes: await compileSource(
+      path,
+      path === "panorama/scripts/showrank_barebones.js" ? barebonesRuntime.source : sourceTexts[path]
+    )
   })));
   const outputPathSet = new Set(files.map((file) => normalizeVpkPath(file.path)));
   const missing = TOPBAR_RANK_REQUIRED_OUTPUT_PATHS.filter((path) => !outputPathSet.has(normalizeVpkPath(path)));
   if (missing.length > 0) throw new Error(`Generated topbar_rank payload missing: ${missing.join(", ")}`);
 
-  return { files, sourceTexts };
+  return { files, sourceTexts, closureMetadata: barebonesRuntime.metadata };
 }

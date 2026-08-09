@@ -12,28 +12,29 @@ export const TOPBAR_SOURCE = {
 
 export const SHOWRANK_SOURCES = {
   showrank_barebones: {
-    fileId: "1774716",
-    modUrl: "https://gamebanana.com/mods/download/681028#FileInfo_1774716",
-    downloadUrl: "https://gamebanana.com/dl/1774716",
-    expectedFileName: "showrank_barebones.7z",
-    expectedSize: 20359,
-    expectedSha256: "1ea6b6a079b2a0064ac4de3b096da75257319c7b44fb108bffc5487841b304e6",
-    expectedVpkSha256: "b9edf8231544503d2dfc61ef1d5ff5d43e970b575285e3b7589f0ed2222cd091",
-    archiveMember: "pak89_dir.vpk"
+    fileId: "1778935",
+    modUrl: "https://gamebanana.com/mods/download/681028#FileInfo_1778935",
+    downloadUrl: "https://gamebanana.com/dl/1778935",
+    expectedFileName: "showrank_barebones_10_8.7z",
+    expectedSize: 23230,
+    expectedSha256: "016f1e6470785b1f78c2da4df956ca54bb477f84bf812cd1936b87bba837263b",
+    expectedVpkSha256: "7f34d6440ffecc0400119b101474e97e7c91e664a8a65a06a887cf605e6290d7",
+    archiveMember: "showrank_barebones_dir.vpk"
   },
   showrank_barebones_no_missing: {
-    fileId: "1774715",
-    modUrl: "https://gamebanana.com/mods/download/681028#FileInfo_1774715",
-    downloadUrl: "https://gamebanana.com/dl/1774715",
-    expectedFileName: "showrank_barebones_no_missing.7z",
-    expectedSize: 16308,
-    expectedSha256: "35e94a192d81b0ab411d9080b1d5d21fdc574409cde9382820ef68ddf2d6ee91",
-    expectedVpkSha256: "0b7c16c4794a7eb4f76720e553f9fb67cc052b97a41e2cda9bb987e7ebbc04f3",
-    archiveMember: "pak89_dir.vpk"
+    fileId: "1778934",
+    modUrl: "https://gamebanana.com/mods/download/681028#FileInfo_1778934",
+    downloadUrl: "https://gamebanana.com/dl/1778934",
+    expectedFileName: "showrank_barebones_no_missing_10_8.7z",
+    expectedSize: 19486,
+    expectedSha256: "ba2cf9c965884859f0520ef126e03b60d69c32cb6a6efdf70b5d4ac69d115558",
+    expectedVpkSha256: "2d46ddf5285fbb6b9bffcb94b7b02cc3286b345ed7a1da310a193901327662f9",
+    archiveMember: "showrank_barebones_no_missing_dir.vpk"
   }
 };
 
 export const SHOWRANK_REQUIRED_VPK_PATHS = [
+  "panorama/layout/citadel_db_page_profile.vxml_c",
   "panorama/layout/citadel_hud_top_bar.vxml_c",
   "panorama/layout/citadel_hud_top_bar_player.vxml_c",
   "panorama/layout/citadel_ui_context_menu_player.vxml_c",

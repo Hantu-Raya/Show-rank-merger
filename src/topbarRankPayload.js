@@ -99,6 +99,7 @@ function outputPathForSource(path) {
   throw new Error(`Unsupported topbar_rank source type: ${path}`);
 }
 
+const JAVASCRIPT_SOURCE_PATHS = TOPBAR_RANK_SOURCE_PATHS.filter((path) => path.endsWith(".js"));
 const BAREBONES_PUBLIC_APIS = [
   "ShowRankBarebonesRefresh",
   "ShowRankBarebonesOpenStatlocker",
@@ -106,7 +107,119 @@ const BAREBONES_PUBLIC_APIS = [
   "ShowRankBarebonesEscapeOpen",
   "ShowRankBarebonesEscapeOut"
 ];
-async function compileBarebonesRuntime(source, expectedVariantId) {
+const DATA_PUBLIC_GLOBALS = ["MOD_ICONS", "HERO_IMAGES"];
+
+function replaceCompilerInputAtMostOnce(source, before, after, path) {
+  const first = source.indexOf(before);
+  if (first < 0) return source;
+  if (first !== source.lastIndexOf(before)) {
+    throw new Error(`Closure input adapter for ${path} found duplicate syntax: ${before}`);
+  }
+  return source.slice(0, first) + after + source.slice(first + before.length);
+}
+
+function exportDataGlobal(source, symbol, path) {
+  const declaration = new RegExp(`(^\\s*)(?:const|let|var)\\s+${symbol}\\s*=`, "m");
+  const match = source.match(declaration);
+  if (!match) {
+    if (new RegExp(`\\b${symbol}\\s*=`).test(source)) return source;
+    throw new Error(`Closure input adapter for ${path} did not find ${symbol}`);
+  }
+  const prepared = source.replace(declaration, `$1${symbol} =`);
+  if (declaration.test(prepared)) {
+    throw new Error(`Closure input adapter for ${path} found duplicate declaration: ${symbol}`);
+  }
+  return prepared;
+}
+
+function prepareJavascriptSource(path, source) {
+  if (path === "panorama/scripts/recent_purchases_redux_data.js") {
+    return DATA_PUBLIC_GLOBALS.reduce((prepared, symbol) => exportDataGlobal(prepared, symbol, path), source);
+  }
+  if (path === "panorama/scripts/rejuvnbufftimer.js") {
+    let prepared = replaceCompilerInputAtMostOnce(
+      source,
+      "cachedGameTimePanel?.text",
+      "cachedGameTimePanel ? cachedGameTimePanel.text : null",
+      path
+    );
+    prepared = replaceCompilerInputAtMostOnce(
+      prepared,
+      "p.GetParent?.()",
+      "p.GetParent && p.GetParent()",
+      path
+    );
+    return prepared;
+  }
+  return source;
+}
+
+function buildClosureExterns(sourceTexts) {
+  const propertyNames = [...new Set(JAVASCRIPT_SOURCE_PATHS.flatMap((path) => (
+    [...sourceTexts[path].matchAll(/\.([A-Za-z_$][A-Za-z0-9_$]*)/g)].map((match) => match[1])
+  )))].sort();
+  return [
+    "var $;",
+    "var Game;",
+    "var GameUI;",
+    ...DATA_PUBLIC_GLOBALS.map((name) => `var ${name};`),
+    "function DismissAllContextMenus() {}",
+    "function DropInputFocus() {}",
+    ...propertyNames.map((propertyName) => `Object.prototype.${propertyName};`)
+  ].join("\n");
+}
+
+function decodeClosureUnicodeEscapes(source) {
+  return source.replace(/\\u([0-9a-fA-F]{4})/g, (escape, hex) => {
+    const codePoint = Number.parseInt(hex, 16);
+    return codePoint === 0x2028 || codePoint === 0x2029 ? escape : String.fromCharCode(codePoint);
+  });
+}
+
+function requiredPublicSymbols(path, expectedVariantId) {
+  if (path === "panorama/scripts/recent_purchases_redux_data.js") return DATA_PUBLIC_GLOBALS;
+  if (path !== "panorama/scripts/showrank_barebones.js") return [];
+  return BAREBONES_PUBLIC_APIS;
+}
+
+async function compileJavascriptSource(path, source, expectedVariantId, compile, externs) {
+  const result = await compile({
+    compilationLevel: "ADVANCED",
+    externs: [{ path: "panorama.externs.js", src: externs }],
+    jsCode: [{ path, src: prepareJavascriptSource(path, source) }],
+    languageIn: "ECMASCRIPT_2020",
+    languageOut: "ECMASCRIPT5",
+    warningLevel: "QUIET"
+  });
+  if (result.errors?.length > 0) {
+    throw new Error(`Closure Compiler failed for ${path}: ${result.errors.map((error) => (
+      error.description || String(error)
+    )).join("; ")}`);
+  }
+  const compiledSource = decodeClosureUnicodeEscapes(result.compiledCode);
+  if (!compiledSource) throw new Error(`Closure Compiler did not produce ${path}`);
+  const sourceBytes = new TextEncoder().encode(source).byteLength;
+  const outputBytes = new TextEncoder().encode(compiledSource).byteLength;
+  if (outputBytes >= sourceBytes) {
+    throw new Error(`Closure Compiler did not reduce ${path}: ${outputBytes} >= ${sourceBytes}`);
+  }
+  const publicSymbols = requiredPublicSymbols(path, expectedVariantId);
+  for (const publicSymbol of publicSymbols) {
+    if (!compiledSource.includes(publicSymbol)) {
+      throw new Error(`Closure Compiler removed public symbol from ${path}: ${publicSymbol}`);
+    }
+  }
+  if (
+    path === "panorama/scripts/showrank_barebones.js"
+    && expectedVariantId === "showrank_barebones"
+    && !compiledSource.includes("ShowRankBarebonesMissingWindowExpired")
+  ) {
+    throw new Error("Closure Compiler removed the alert missing-window class marker");
+  }
+  return { source: compiledSource, metadata: { sourceBytes, outputBytes, publicSymbols } };
+}
+
+async function compileJavascriptSources(sourceTexts, expectedVariantId) {
   const closureCompilerModule = await import("google-closure-compiler-js");
   const compile = closureCompilerModule.compile
     || closureCompilerModule.default?.compile
@@ -114,51 +227,23 @@ async function compileBarebonesRuntime(source, expectedVariantId) {
   if (typeof compile !== "function") {
     throw new Error("google-closure-compiler-js does not expose a compiler function");
   }
-  const propertyNames = [...new Set(
-    [...source.matchAll(/\.([A-Za-z_$][A-Za-z0-9_$]*)/g)].map((match) => match[1])
-  )].sort();
-  const externs = [
-    "var $;",
-    "function DismissAllContextMenus() {}",
-    "function DropInputFocus() {}",
-    ...propertyNames.map((propertyName) => `Object.prototype.${propertyName};`)
-  ].join("\n");
-  const publicApis = expectedVariantId === "showrank_barebones"
-    ? [...BAREBONES_PUBLIC_APIS, "ShowRankBarebonesMissingWindowExpired"]
-    : BAREBONES_PUBLIC_APIS;
-  const result = await compile({
-    compilationLevel: "ADVANCED",
-    externs: [{ path: "showrank_barebones.externs.js", src: externs }],
-    jsCode: [{ path: "showrank_barebones.js", src: source }],
-    languageIn: "ECMASCRIPT5",
-    languageOut: "ECMASCRIPT5",
-    warningLevel: "QUIET"
-  });
-  if (result.errors?.length > 0) {
-    throw new Error(`Closure Compiler failed: ${result.errors.map((error) => error.description || String(error)).join("; ")}`);
-  }
-  const compiledSource = result.compiledCode;
-  if (typeof compiledSource !== "string" || compiledSource.length === 0) {
-    throw new Error("Closure Compiler did not produce a showrank_barebones runtime");
-  }
-  if (compiledSource.length >= source.length) {
-    throw new Error(`Closure Compiler did not reduce showrank_barebones.js: ${compiledSource.length} >= ${source.length}`);
-  }
-  for (const publicApi of publicApis) {
-    if (!compiledSource.includes(publicApi)) {
-      throw new Error(`Closure Compiler removed public Barebones API: ${publicApi}`);
-    }
-  }
+  const externs = buildClosureExterns(sourceTexts);
+  const compiledEntries = await Promise.all(JAVASCRIPT_SOURCE_PATHS.map(async (path) => [
+    path,
+    await compileJavascriptSource(path, sourceTexts[path], expectedVariantId, compile, externs)
+  ]));
+  const compiledByPath = Object.fromEntries(compiledEntries);
+  const scripts = Object.fromEntries(compiledEntries.map(([path, compiled]) => [path, compiled.metadata]));
   return {
-    source: compiledSource,
+    compiledByPath,
     metadata: {
       compilationLevel: "ADVANCED",
       externs,
-      inputLanguage: "ECMASCRIPT5",
+      inputLanguage: "ECMASCRIPT_2020",
       outputLanguage: "ECMASCRIPT5",
-      sourceBytes: new TextEncoder().encode(source).byteLength,
-      outputBytes: new TextEncoder().encode(compiledSource).byteLength,
-      publicApis
+      sourceBytes: Object.values(scripts).reduce((total, script) => total + script.sourceBytes, 0),
+      outputBytes: Object.values(scripts).reduce((total, script) => total + script.outputBytes, 0),
+      scripts
     }
   };
 }
@@ -175,20 +260,14 @@ export async function buildTopbarRankPayload({
   sourceTexts = bundledSourceTextsForEdition(expectedVariantId)
 } = {}) {
   validateSourceInvariants(sourceTexts, expectedVariantId);
-  const barebonesRuntime = await compileBarebonesRuntime(
-    sourceTexts["panorama/scripts/showrank_barebones.js"],
-    expectedVariantId
-  );
+  const javascript = await compileJavascriptSources(sourceTexts, expectedVariantId);
   const files = await Promise.all(TOPBAR_RANK_SOURCE_PATHS.map(async (path) => ({
     path: outputPathForSource(path),
-    bytes: await compileSource(
-      path,
-      path === "panorama/scripts/showrank_barebones.js" ? barebonesRuntime.source : sourceTexts[path]
-    )
+    bytes: await compileSource(path, path.endsWith(".js") ? javascript.compiledByPath[path].source : sourceTexts[path])
   })));
   const outputPathSet = new Set(files.map((file) => normalizeVpkPath(file.path)));
   const missing = TOPBAR_RANK_REQUIRED_OUTPUT_PATHS.filter((path) => !outputPathSet.has(normalizeVpkPath(path)));
   if (missing.length > 0) throw new Error(`Generated topbar_rank payload missing: ${missing.join(", ")}`);
 
-  return { files, sourceTexts, closureMetadata: barebonesRuntime.metadata };
+  return { files, sourceTexts, closureMetadata: javascript.metadata };
 }

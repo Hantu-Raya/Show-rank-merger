@@ -83,42 +83,50 @@ test("bundled source texts exactly match both local Topbar Rank source trees", a
   }
 });
 
-test("only Barebones runtime is Closure-minified before it becomes a vjs_c resource", async () => {
+test("Closure ADVANCED minifies every JavaScript resource and preserves public interfaces", async () => {
+  const javascriptPaths = TOPBAR_RANK_SOURCE_PATHS.filter((path) => path.endsWith(".js"));
   for (const expectedVariantId of EDITION_IDS) {
     const payload = await buildTopbarRankPayload({ expectedVariantId });
-    const sourcePath = "panorama/scripts/showrank_barebones.js";
-    const compiledRuntime = sourceTextForResource(payload, sourcePath);
-    const sourceRuntime = payload.sourceTexts[sourcePath];
-    const requiredApis = [
+    const requiredBarebonesApis = [
       "ShowRankBarebonesRefresh",
       "ShowRankBarebonesOpenStatlocker",
       "ShowRankBarebonesCopyAccount",
       "ShowRankBarebonesEscapeOpen",
       "ShowRankBarebonesEscapeOut"
     ];
-    if (expectedVariantId === "showrank_barebones") requiredApis.push("ShowRankBarebonesMissingWindowExpired");
 
-    assert.equal(resourceVersion(fileByPath(payload, sourcePath.replace(/\.js$/, ".vjs_c")).bytes), 4);
-    assert.ok(compiledRuntime.length < sourceRuntime.length, `${expectedVariantId} runtime was not reduced`);
-    for (const api of requiredApis) assert.ok(compiledRuntime.includes(api), `${expectedVariantId} lost ${api}`);
+    assert.deepEqual(Object.keys(payload.closureMetadata.scripts), javascriptPaths);
+    for (const sourcePath of javascriptPaths) {
+      const compiled = sourceTextForResource(payload, sourcePath);
+      const source = payload.sourceTexts[sourcePath];
+      const metadata = payload.closureMetadata.scripts[sourcePath];
+      assert.equal(resourceVersion(fileByPath(payload, sourcePath.replace(/\.js$/, ".vjs_c")).bytes), 4);
+      assert.notEqual(compiled, source, `${sourcePath} was not transformed`);
+      assert.ok(metadata.outputBytes < metadata.sourceBytes, `${sourcePath} was not reduced`);
+      assert.equal(new TextEncoder().encode(compiled).byteLength, metadata.outputBytes);
+      assert.doesNotThrow(() => new Function(compiled), `${sourcePath} is not valid JavaScript`);
+    }
+
+    const barebones = sourceTextForResource(payload, "panorama/scripts/showrank_barebones.js");
+    for (const api of requiredBarebonesApis) {
+      assert.ok(barebones.includes(api), `${expectedVariantId} lost ${api}`);
+    }
+    if (expectedVariantId === "showrank_barebones") {
+      assert.ok(barebones.includes("ShowRankBarebonesMissingWindowExpired"));
+    }
+    const purchaseData = sourceTextForResource(payload, "panorama/scripts/recent_purchases_redux_data.js");
+    assert.ok(purchaseData.includes("MOD_ICONS"), `${expectedVariantId} lost MOD_ICONS`);
+    assert.ok(purchaseData.includes("HERO_IMAGES"), `${expectedVariantId} lost HERO_IMAGES`);
+    assert.ok(purchaseData.includes("A Bocajarro"), `${expectedVariantId} lost quoted item keys`);
+    assert.ok(
+      sourceTextForResource(payload, "panorama/scripts/recent_purchases_redux.js").includes("MOD_ICONS"),
+      `${expectedVariantId} lost the MOD_ICONS consumer`
+    );
     assert.equal(payload.closureMetadata.compilationLevel, "ADVANCED");
-    assert.equal(payload.closureMetadata.inputLanguage, "ECMASCRIPT5");
+    assert.equal(payload.closureMetadata.inputLanguage, "ECMASCRIPT_2020");
     assert.equal(payload.closureMetadata.outputLanguage, "ECMASCRIPT5");
     assert.equal(payload.closureMetadata.outputBytes < payload.closureMetadata.sourceBytes, true);
     assert.match(payload.closureMetadata.externs, /^var \$;/m);
-  }
-});
-
-test("non-Barebones scripts retain their readable source text verbatim", async () => {
-  for (const expectedVariantId of EDITION_IDS) {
-    const payload = await buildTopbarRankPayload({ expectedVariantId });
-    for (const sourcePath of TOPBAR_RANK_SOURCE_PATHS.filter(
-      (path) => path.endsWith(".js") && path !== "panorama/scripts/showrank_barebones.js"
-    )) {
-      const file = fileByPath(payload, sourcePath.replace(/\.js$/, ".vjs_c"));
-      assert.equal(resourceVersion(file.bytes), 4, `${sourcePath} has the wrong resource version`);
-      assert.equal(extractTextResource(file.bytes), payload.sourceTexts[sourcePath], `${sourcePath} was transformed`);
-    }
   }
 });
 

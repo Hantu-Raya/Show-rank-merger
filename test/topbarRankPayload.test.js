@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -63,11 +64,15 @@ test("each edition produces exactly the 23 declared binary resources", async () 
   }
 });
 
-test("bundled source texts exactly match both local Topbar Rank source trees", async () => {
+test("bundled source texts exactly match both local Topbar Rank source trees", async (context) => {
   const sourceRoots = {
     showrank_barebones: "../../topbar_rank/",
     showrank_barebones_no_missing: "../../topbar_rank_no_missing/"
   };
+  if (!existsSync(new URL(`${sourceRoots.showrank_barebones}${TOPBAR_RANK_SOURCE_PATHS[0]}`, import.meta.url))) {
+    context.skip("sibling Topbar Rank source trees are unavailable");
+    return;
+  }
 
   for (const [editionId, sourceRoot] of Object.entries(sourceRoots)) {
     const payload = await buildTopbarRankPayload({ expectedVariantId: editionId });

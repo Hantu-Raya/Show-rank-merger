@@ -1,5 +1,5 @@
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TOPBAR_RANK_SOURCE_BASE_URLS, TOPBAR_RANK_SOURCE_PATHS } from "../src/topbarRankSourceManifest.js";
 import {
@@ -37,35 +37,27 @@ function bundledSourceTexts(editionId) {
 }
 
 async function loadEditionSources(editionId) {
+  return Object.fromEntries(await Promise.all(
+    TOPBAR_RANK_SOURCE_PATHS.map(async (path) => [path, await fetchText(editionId, path)])
+  ));
+}
+
+export async function loadSynchronizedEditionSources({
+  loadEdition = loadEditionSources,
+  bundledEdition = bundledSourceTexts,
+  localSourceRoots = LOCAL_SOURCE_ROOTS,
+  warn = console.warn
+} = {}) {
   try {
     return Object.fromEntries(await Promise.all(
-      TOPBAR_RANK_SOURCE_PATHS.map(async (path) => [path, await fetchText(editionId, path)])
+      EDITION_IDS.map(async (editionId) => [editionId, await loadEdition(editionId)])
     ));
   } catch (error) {
-    if (LOCAL_SOURCE_ROOTS[editionId]) throw error;
-    console.warn(`Could not refresh ${editionId}; keeping bundled payload: ${error.message}`);
-    return bundledSourceTexts(editionId);
+    if (EDITION_IDS.some((editionId) => localSourceRoots[editionId])) throw error;
+    warn(`Could not refresh both Barebones editions; keeping bundled payloads: ${error.message}`);
+    return Object.fromEntries(EDITION_IDS.map((editionId) => [editionId, bundledEdition(editionId)]));
   }
 }
-
-
-const sourceTextsByEdition = {};
-for (const editionId of EDITION_IDS) {
-  sourceTextsByEdition[editionId] = await loadEditionSources(editionId);
-}
-
-const alertSources = sourceTextsByEdition.showrank_barebones;
-const noMissingSources = sourceTextsByEdition.showrank_barebones_no_missing;
-const noMissingOverrides = Object.fromEntries(
-  TOPBAR_RANK_SOURCE_PATHS
-    .filter((path) => noMissingSources[path] !== alertSources[path])
-    .map((path) => [path, noMissingSources[path]])
-);
-
-const outputRootPath = fileURLToPath(OUTPUT_ROOT).replace(/[\\/]+$/, "");
-const generatedOutputPath = fileURLToPath(GENERATED_OUTPUT);
-const stagedOutputRoot = await mkdtemp(`${outputRootPath}.stage-`);
-const stagedGeneratedOutput = `${generatedOutputPath}.stage-${process.pid}-${Date.now()}`;
 
 async function replaceAtomically(stagedPath, destinationPath) {
   const backupPath = `${destinationPath}.previous`;
@@ -80,30 +72,51 @@ async function replaceAtomically(stagedPath, destinationPath) {
   await rm(backupPath, { recursive: true, force: true });
 }
 
-try {
-  for (const path of TOPBAR_RANK_SOURCE_PATHS) {
-    const outputPath = join(stagedOutputRoot, path);
-    await mkdir(dirname(outputPath), { recursive: true });
-    await writeFile(outputPath, alertSources[path]);
-  }
+async function writeSynchronizedPayload(sourceTextsByEdition) {
+  const alertSources = sourceTextsByEdition.showrank_barebones;
+  const noMissingSources = sourceTextsByEdition.showrank_barebones_no_missing;
+  const noMissingOverrides = Object.fromEntries(
+    TOPBAR_RANK_SOURCE_PATHS
+      .filter((path) => noMissingSources[path] !== alertSources[path])
+      .map((path) => [path, noMissingSources[path]])
+  );
+  const outputRootPath = fileURLToPath(OUTPUT_ROOT).replace(/[\\/]+$/, "");
+  const generatedOutputPath = fileURLToPath(GENERATED_OUTPUT);
+  const stagedOutputRoot = await mkdtemp(`${outputRootPath}.stage-`);
+  const stagedGeneratedOutput = `${generatedOutputPath}.stage-${process.pid}-${Date.now()}`;
 
-  let generated = "export const TOPBAR_RANK_SOURCE_TEXTS = {\n";
-  for (const path of TOPBAR_RANK_SOURCE_PATHS) {
-    generated += `  ${JSON.stringify(path)}: ${JSON.stringify(alertSources[path])},\n`;
-  }
-  generated += "};\n\nexport const TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES = {\n";
-  for (const path of Object.keys(noMissingOverrides)) {
-    generated += `  ${JSON.stringify(path)}: ${JSON.stringify(noMissingOverrides[path])},\n`;
-  }
-  generated += "};\n";
-  await writeFile(stagedGeneratedOutput, generated);
+  try {
+    for (const path of TOPBAR_RANK_SOURCE_PATHS) {
+      const outputPath = join(stagedOutputRoot, path);
+      await mkdir(dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, alertSources[path]);
+    }
 
-  await replaceAtomically(stagedOutputRoot, outputRootPath);
-  await replaceAtomically(stagedGeneratedOutput, generatedOutputPath);
-} catch (error) {
-  await rm(stagedOutputRoot, { recursive: true, force: true });
-  await rm(stagedGeneratedOutput, { force: true });
-  throw error;
+    let generated = "export const TOPBAR_RANK_SOURCE_TEXTS = {\n";
+    for (const path of TOPBAR_RANK_SOURCE_PATHS) {
+      generated += `  ${JSON.stringify(path)}: ${JSON.stringify(alertSources[path])},\n`;
+    }
+    generated += "};\n\nexport const TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES = {\n";
+    for (const path of Object.keys(noMissingOverrides)) {
+      generated += `  ${JSON.stringify(path)}: ${JSON.stringify(noMissingOverrides[path])},\n`;
+    }
+    generated += "};\n";
+    await writeFile(stagedGeneratedOutput, generated);
+
+    await replaceAtomically(stagedOutputRoot, outputRootPath);
+    await replaceAtomically(stagedGeneratedOutput, generatedOutputPath);
+  } catch (error) {
+    await rm(stagedOutputRoot, { recursive: true, force: true });
+    await rm(stagedGeneratedOutput, { force: true });
+    throw error;
+  }
 }
 
-console.log(`synced ${TOPBAR_RANK_SOURCE_PATHS.length} paths and wrote ${GENERATED_OUTPUT.pathname}`);
+async function syncPayload() {
+  await writeSynchronizedPayload(await loadSynchronizedEditionSources());
+  console.log(`synced ${TOPBAR_RANK_SOURCE_PATHS.length} paths and wrote ${GENERATED_OUTPUT.pathname}`);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await syncPayload();
+}

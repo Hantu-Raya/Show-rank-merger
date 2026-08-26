@@ -1,61 +1,104 @@
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { TOPBAR_RANK_SOURCE_BASE_URLS, TOPBAR_RANK_SOURCE_PATHS } from "../src/topbarRankSourceManifest.js";
 import {
-  TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES,
-  TOPBAR_RANK_SOURCE_TEXTS
-} from "../src/payload/topbarRankSources.generated.js";
+  TOPBAR_RANK_BAREBONES_SOURCE_BASE_URLS,
+  TOPBAR_RANK_COMPOSITION_SOURCE_BASE_URL,
+  TOPBAR_RANK_COMPOSITION_SOURCE_PATHS,
+  TOPBAR_RANK_EDITIONS,
+  TOPBAR_RANK_SOURCE_BASE_URLS,
+  TOPBAR_RANK_SOURCE_PATHS
+} from "../src/topbarRankSourceManifest.js";
+import { composeTopbarRankSourceTexts } from "../src/topbarRankSourceFetch.js";
+import { TOPBAR_RANK_SOURCE_TEXTS_BY_EDITION } from "../src/payload/topbarRankSources.generated.js";
 
-const EDITION_IDS = Object.keys(TOPBAR_RANK_SOURCE_BASE_URLS);
-const LOCAL_SOURCE_ROOTS = {
-  showrank_barebones: process.env.TOPBAR_RANK_SOURCE_ROOT || "",
-  showrank_barebones_no_missing: process.env.TOPBAR_RANK_NO_MISSING_SOURCE_ROOT || ""
-};
+const BAREBONES_SOURCE_PATH = "panorama/scripts/showrank_barebones.js";
 const OUTPUT_ROOT = new URL("../src/payload/topbar_rank/", import.meta.url);
 const GENERATED_OUTPUT = new URL("../src/payload/topbarRankSources.generated.js", import.meta.url);
 
-async function fetchText(editionId, path) {
-  const localSourceRoot = LOCAL_SOURCE_ROOTS[editionId];
-  if (localSourceRoot) return readFile(join(localSourceRoot, path), "utf8");
-
-  const baseUrl = TOPBAR_RANK_SOURCE_BASE_URLS[editionId];
-  const url = `${baseUrl.replace(/\/$/, "")}/${path}`;
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "rank-merger-payload-sync"
-    }
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
-  }
-  return response.text();
-}
-function bundledSourceTexts(editionId) {
-  if (editionId === "showrank_barebones") return TOPBAR_RANK_SOURCE_TEXTS;
-  return { ...TOPBAR_RANK_SOURCE_TEXTS, ...TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES };
+function editionEnvironmentName(editionId) {
+  return editionId.toUpperCase();
 }
 
-async function loadEditionSources(editionId) {
-  return Object.fromEntries(await Promise.all(
-    TOPBAR_RANK_SOURCE_PATHS.map(async (path) => [path, await fetchText(editionId, path)])
+function localSourceRoot(editionId, path) {
+  const suffix = editionEnvironmentName(editionId);
+  const variable = path === BAREBONES_SOURCE_PATH
+    ? `TOPBAR_RANK_BAREBONES_SOURCE_ROOT_${suffix}`
+    : `TOPBAR_RANK_SOURCE_ROOT_${suffix}`;
+  return process.env[variable] || "";
+}
+
+function sourceBaseUrl(editionId, path) {
+  return path === BAREBONES_SOURCE_PATH
+    ? TOPBAR_RANK_BAREBONES_SOURCE_BASE_URLS[editionId]
+    : TOPBAR_RANK_SOURCE_BASE_URLS[editionId];
+}
+
+function sourceUrl(baseUrl, path) {
+  return `${baseUrl.replace(/\/$/, "")}/${path}`;
+}
+
+function localCompositionRoot() {
+  if (process.env.TOPBAR_RANK_COMPOSITION_SOURCE_ROOT) return process.env.TOPBAR_RANK_COMPOSITION_SOURCE_ROOT;
+  const localRoot = localSourceRoot("alert", TOPBAR_RANK_SOURCE_PATHS[0]);
+  return localRoot ? dirname(localRoot) : "";
+}
+
+async function fetchText(url, label) {
+  const response = await fetch(url, { headers: { "User-Agent": "rank-merger-payload-sync" } });
+  if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+  const text = await response.text();
+  if (!text) throw new Error(`${label} was empty`);
+  return text;
+}
+
+async function fetchSourceText(editionId, path) {
+  const localRoot = localSourceRoot(editionId, path);
+  if (localRoot) return readFile(join(localRoot, path), "utf8");
+  return fetchText(sourceUrl(sourceBaseUrl(editionId, path), path), `${editionId}/${path}`);
+}
+
+async function fetchCompositionText(path) {
+  const localRoot = localCompositionRoot();
+  if (localRoot) return readFile(join(localRoot, path), "utf8");
+  return fetchText(sourceUrl(TOPBAR_RANK_COMPOSITION_SOURCE_BASE_URL, path), `composition/${path}`);
+}
+
+function hasLocalSourceOverrides() {
+  if (localCompositionRoot()) return true;
+  return TOPBAR_RANK_EDITIONS.some((editionId) => (
+    TOPBAR_RANK_SOURCE_PATHS.some((path) => localSourceRoot(editionId, path))
   ));
 }
 
+async function loadFreshEditionSources() {
+  const compositionSources = Object.fromEntries(
+    await Promise.all(TOPBAR_RANK_COMPOSITION_SOURCE_PATHS.map(async (path) => [
+      path,
+      await fetchCompositionText(path)
+    ]))
+  );
+
+  return Object.fromEntries(await Promise.all(TOPBAR_RANK_EDITIONS.map(async (editionId) => {
+    const rawSourceTexts = Object.fromEntries(await Promise.all(
+      TOPBAR_RANK_SOURCE_PATHS.map(async (path) => [path, await fetchSourceText(editionId, path)])
+    ));
+    return [editionId, composeTopbarRankSourceTexts(rawSourceTexts, compositionSources)];
+  })));
+}
+
 export async function loadSynchronizedEditionSources({
-  loadEdition = loadEditionSources,
-  bundledEdition = bundledSourceTexts,
-  localSourceRoots = LOCAL_SOURCE_ROOTS,
+  loadFresh = loadFreshEditionSources,
+  bundled = TOPBAR_RANK_SOURCE_TEXTS_BY_EDITION,
+  localOverrides = hasLocalSourceOverrides(),
   warn = console.warn
 } = {}) {
   try {
-    return Object.fromEntries(await Promise.all(
-      EDITION_IDS.map(async (editionId) => [editionId, await loadEdition(editionId)])
-    ));
+    return await loadFresh();
   } catch (error) {
-    if (EDITION_IDS.some((editionId) => localSourceRoots[editionId])) throw error;
+    if (localOverrides) throw error;
     warn(`Could not refresh both Barebones editions; keeping bundled payloads: ${error.message}`);
-    return Object.fromEntries(EDITION_IDS.map((editionId) => [editionId, bundledEdition(editionId)]));
+    return bundled;
   }
 }
 
@@ -73,32 +116,27 @@ async function replaceAtomically(stagedPath, destinationPath) {
 }
 
 async function writeSynchronizedPayload(sourceTextsByEdition) {
-  const alertSources = sourceTextsByEdition.showrank_barebones;
-  const noMissingSources = sourceTextsByEdition.showrank_barebones_no_missing;
-  const noMissingOverrides = Object.fromEntries(
-    TOPBAR_RANK_SOURCE_PATHS
-      .filter((path) => noMissingSources[path] !== alertSources[path])
-      .map((path) => [path, noMissingSources[path]])
-  );
   const outputRootPath = fileURLToPath(OUTPUT_ROOT).replace(/[\\/]+$/, "");
   const generatedOutputPath = fileURLToPath(GENERATED_OUTPUT);
   const stagedOutputRoot = await mkdtemp(`${outputRootPath}.stage-`);
   const stagedGeneratedOutput = `${generatedOutputPath}.stage-${process.pid}-${Date.now()}`;
 
   try {
-    for (const path of TOPBAR_RANK_SOURCE_PATHS) {
-      const outputPath = join(stagedOutputRoot, path);
-      await mkdir(dirname(outputPath), { recursive: true });
-      await writeFile(outputPath, alertSources[path]);
+    for (const editionId of TOPBAR_RANK_EDITIONS) {
+      for (const path of TOPBAR_RANK_SOURCE_PATHS) {
+        const outputPath = join(stagedOutputRoot, editionId, path);
+        await mkdir(dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, sourceTextsByEdition[editionId][path]);
+      }
     }
 
-    let generated = "export const TOPBAR_RANK_SOURCE_TEXTS = {\n";
-    for (const path of TOPBAR_RANK_SOURCE_PATHS) {
-      generated += `  ${JSON.stringify(path)}: ${JSON.stringify(alertSources[path])},\n`;
-    }
-    generated += "};\n\nexport const TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES = {\n";
-    for (const path of Object.keys(noMissingOverrides)) {
-      generated += `  ${JSON.stringify(path)}: ${JSON.stringify(noMissingOverrides[path])},\n`;
+    let generated = "export const TOPBAR_RANK_SOURCE_TEXTS_BY_EDITION = {\n";
+    for (const editionId of TOPBAR_RANK_EDITIONS) {
+      generated += `  ${JSON.stringify(editionId)}: {\n`;
+      for (const path of TOPBAR_RANK_SOURCE_PATHS) {
+        generated += `    ${JSON.stringify(path)}: ${JSON.stringify(sourceTextsByEdition[editionId][path])},\n`;
+      }
+      generated += "  },\n";
     }
     generated += "};\n";
     await writeFile(stagedGeneratedOutput, generated);
@@ -114,7 +152,7 @@ async function writeSynchronizedPayload(sourceTextsByEdition) {
 
 async function syncPayload() {
   await writeSynchronizedPayload(await loadSynchronizedEditionSources());
-  console.log(`synced ${TOPBAR_RANK_SOURCE_PATHS.length} paths and wrote ${GENERATED_OUTPUT.pathname}`);
+  console.log(`synced ${TOPBAR_RANK_EDITIONS.length} editions with ${TOPBAR_RANK_SOURCE_PATHS.length} paths each`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

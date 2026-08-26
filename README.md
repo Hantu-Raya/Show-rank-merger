@@ -1,24 +1,23 @@
 # Topbar Rank VPK Merger
 
-Static Astro + React app for building a local Deadlock `topbar_rank` VPK. The app runs in the browser: users upload the exact Top Bar Plus V40D archive and the ShowRank Barebones archive selected by the missing-alert ON/OFF toggle, then download the generated VPK. The selected integrated payload is fetched from GitHub at build time.
-
-Hosted app: <https://hantu-raya.github.io/Show-rank-merger/>
+Static Astro + React app for building a current standalone Topbar Rank Barebones VPK from an exact Top Bar Plus v40d archive. Files stay in the browser; no server receives the uploaded archive.
 
 ## What it does
 
-- Validates the exact Top Bar Plus V40D archive and the selected current ShowRank Barebones alert or no-missing GameBanana archive.
-- Fetches the current `topbar_rank/panorama/**` integrated source when missing alerts are ON or `topbar_rank_no_missing/panorama/**` when they are OFF.
-- Validates and compiles all 23 Source 2 resources in the selected integrated payload, Closure ADVANCED-minifying all six JavaScript resources.
-- Falls back to the matching bundled source when GitHub is unavailable.
-- Keeps files local. There is no server-side archive processing.
+- Validates the Top Bar Plus v40d archive by exact outer size/SHA-256, embedded VPK SHA-256, and required VPK paths.
+- Offers two mutually exclusive editions: `alert` and `no_missing`.
+- Fetches the selected edition's current 23-resource source map and composes the viewed-profile identity policy, Profile Stats Community runtime, and stylesheet exactly once.
+- Uses the same composed rules for latest-source builds and bundled offline fallbacks, rejecting unresolved composition placeholders before Closure compilation.
+- Compiles every Panorama JavaScript source with Closure ADVANCED and writes an embedded Source 2 VPK.
 
-## Supported input
+## Inputs and editions
 
-- Top Bar Plus V40D: `v40d_top_bar_plus.zip`
-- ShowRank Barebones alert archive
-- ShowRank Barebones no-missing archive
+- Required input: `v40d_top_bar_plus.zip` (the filename is only a hint; archive and embedded identities must match).
+- `alert` is selected by default and downloads `topbar_rank_barebones_dir.vpk`.
+- `no_missing` downloads `topbar_rank_barebones_no_missing_dir.vpk`.
+- The edition toggle selects one build; it is locked while a build is running.
 
-Filenames are only hints. Archive identity, embedded VPK identity, and required VPK paths decide compatibility.
+`alert` means missing-enemy alerts during the first eight minutes, based on native health visibility. It does not mean missing rank data, missing API data, or a failed rank lookup. `no_missing` removes the missing-enemy runtime, XML, CSS, and clock-polling markers.
 
 ## Development
 
@@ -32,7 +31,7 @@ npm run build
 npm run check
 ```
 
-Local dev URL with the configured GitHub Pages base:
+Local dev URL:
 
 ```text
 http://localhost:4321/Show-rank-merger/
@@ -40,53 +39,31 @@ http://localhost:4321/Show-rank-merger/
 
 ## Payload sync
 
-Refresh the bundled fallback copy from upstream:
+Refresh both checked-in fallback editions from upstream:
 
 ```bash
 npm run sync:payload
 ```
 
-To synchronize both payloads from local checkouts instead:
+The sync removes stale flat payload material, writes `src/payload/topbar_rank/<edition>/`, composes the current fragments, and regenerates `src/payload/topbarRankSources.generated.js`. Set `TOPBAR_RANK_SOURCE_ROOT_ALERT`, `TOPBAR_RANK_SOURCE_ROOT_NO_MISSING`, and (when using local roots) `TOPBAR_RANK_COMPOSITION_SOURCE_ROOT` to read local source trees instead of fetching them.
 
-```powershell
-$env:TOPBAR_RANK_SOURCE_ROOT = "F:\path\to\Deadlock-mods-collection\topbar_rank"
-$env:TOPBAR_RANK_NO_MISSING_SOURCE_ROOT = "F:\path\to\Deadlock-mods-collection\topbar_rank_no_missing"
-npm run sync:payload
-```
-The deployed app fetches the latest public upstream source before building. Network failures use the bundled source.
+The deployed app fetches the selected edition at build time. Network failures use that edition's composed bundled source; unresolved seams fail closed.
 
 ## Verification
 
-Run the standard local gate:
-
 ```bash
 npm run check
-```
-
-Verify the live Top Bar Plus V40D and both ShowRank Barebones fixtures, then generate both 23-resource VPKs:
-
-```bash
 node scripts/verify-gamebanana-fixtures.mjs
 ```
 
-The fixture verifier needs network access to GameBanana. GitHub is used when available; otherwise it verifies both bundled payload fallbacks.
+Focused tests cover archive identity, both 23-resource editions, composition, Closure output guards, no-missing marker rejection, and exact output filenames.
 
 ## Deployment
 
-GitHub Pages deploys from `.github/workflows/deploy-pages.yml` on pushes to `main`, manual dispatch, and a 6-hour schedule. The workflow:
-
-1. Installs dependencies with `npm ci --ignore-scripts`.
-2. Syncs the latest bundled `topbar_rank` and `topbar_rank_no_missing` payloads.
-3. Runs `npm run check`.
-4. Publishes `dist/` to the `gh-pages` branch.
-
-Astro is configured with:
-
-- `site: "https://hantu-raya.github.io"`
-- `base: "/Show-rank-merger/"`
+GitHub Pages deploys from `.github/workflows/deploy-pages.yml`. The workflow syncs both current source editions, runs the test/build gate, and publishes `dist/`.
 
 ## License
 
 Apache-2.0. See `LICENSE`.
 
-This is an unofficial fan-made tool. It is not affiliated with Valve.
+This is an unofficial fan-made tool and is not affiliated with Valve.

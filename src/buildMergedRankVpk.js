@@ -3,7 +3,7 @@ import { fetchLatestTopbarRankSourceTexts } from "./topbarRankSourceFetch.js";
 import { mergeFilesWithPriority } from "./rankMerge.js";
 import { parseVpk } from "./vpkReader.js";
 import { TOPBAR_SOURCE } from "./gamebananaSources.js";
-import { validateShowrankArchive, validateTopbarArchive } from "./sourceValidation.js";
+import { validateTopbarArchive } from "./sourceValidation.js";
 import { writeVpk } from "./vpkWriter.js";
 
 function toBytes(input) {
@@ -14,19 +14,16 @@ function toBytes(input) {
   throw new Error("Expected bytes");
 }
 
-function outputFilenameForMergedVpk(expectedVariantId, baseName = "") {
-  if (!baseName) return `topbar-rank-${expectedVariantId}_dir.vpk`;
-  const clean = String(baseName).replace(/[\\/:*?"<>|]+/g, "_");
-  const withExtension = clean.toLowerCase().endsWith(".vpk") ? clean : `${clean}.vpk`;
-  return `topbar-rank-${expectedVariantId}-${withExtension}`;
+function outputFilenameForMergedVpk(editionId) {
+  if (editionId === "alert") return "topbar_rank_barebones_dir.vpk";
+  if (editionId === "no_missing") return "topbar_rank_barebones_no_missing_dir.vpk";
+  throw new Error(`Unsupported Topbar Rank edition: ${editionId}`);
 }
 
 export async function buildMergedRankVpk({
   baseVpkBytes = null,
   topbarArchiveBytes,
-  showrankArchiveBytes,
-  expectedVariantId = "",
-  baseName = "",
+  editionId = "alert",
   payloadSourceTexts = null,
   fetchLatestPayloadSource = true
 }) {
@@ -34,48 +31,33 @@ export async function buildMergedRankVpk({
     { name: TOPBAR_SOURCE.expectedFileName },
     toBytes(topbarArchiveBytes)
   );
-  const showrankValidation = await validateShowrankArchive(
-    { name: "showrank.7z" },
-    toBytes(showrankArchiveBytes),
-    expectedVariantId
-  );
-  const variantId = showrankValidation.variantId;
   const baseParsed = baseVpkBytes ? parseVpk(toBytes(baseVpkBytes)) : { files: [] };
-  let payload;
-  let sourceOrigin = payloadSourceTexts ? "provided" : "bundled";
-  if (payloadSourceTexts) {
-    payload = await buildTopbarRankPayload({
-      expectedVariantId: variantId,
-      sourceTexts: payloadSourceTexts
-    });
-  } else if (fetchLatestPayloadSource) {
+  let sourceTexts = payloadSourceTexts;
+  let sourceOrigin = sourceTexts ? "provided" : "bundled";
+  if (!sourceTexts && fetchLatestPayloadSource) {
     try {
-      const latestSourceTexts = await fetchLatestTopbarRankSourceTexts({ expectedVariantId: variantId });
-      payload = await buildTopbarRankPayload({
-        expectedVariantId: variantId,
-        sourceTexts: latestSourceTexts
-      });
+      sourceTexts = await fetchLatestTopbarRankSourceTexts({ editionId });
       sourceOrigin = "latest";
     } catch {
-      // A missing or incompatible upstream source uses the checked-in payload.
-      payload = await buildTopbarRankPayload({ expectedVariantId: variantId });
+      // Network or incompatible upstream source falls back to the checked-in edition.
     }
-  } else {
-    payload = await buildTopbarRankPayload({ expectedVariantId: variantId });
   }
+  const payload = await buildTopbarRankPayload({
+    editionId,
+    ...(sourceTexts ? { sourceTexts } : {})
+  });
   const { files: outputFiles, overwrittenPaths } = mergeFilesWithPriority(baseParsed.files, payload.files);
   const bytes = writeVpk(outputFiles);
 
   return {
     bytes,
-    variantId,
+    editionId: payload.editionId,
     outputFiles,
     overwrittenPaths,
-    filename: outputFilenameForMergedVpk(variantId, baseName),
+    filename: outputFilenameForMergedVpk(payload.editionId),
     sourceOrigin,
     validation: {
       topbar: topbarValidation,
-      showrank: showrankValidation,
       payload
     }
   };

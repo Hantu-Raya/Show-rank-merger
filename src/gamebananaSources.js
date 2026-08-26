@@ -10,40 +10,25 @@ export const TOPBAR_SOURCE = {
   archiveMember: "pak01_dir.vpk"
 };
 
-export const SHOWRANK_SOURCES = {
-  showrank_barebones: {
+export const SHOWRANK_RELEASES = Object.freeze({
+  alert: Object.freeze({
     fileId: "1778935",
-    modUrl: "https://gamebanana.com/mods/download/681028#FileInfo_1778935",
-    downloadUrl: "https://gamebanana.com/dl/1778935",
-    expectedFileName: "showrank_barebones_10_8.7z",
-    expectedSize: 23230,
-    expectedSha256: "016f1e6470785b1f78c2da4df956ca54bb477f84bf812cd1936b87bba837263b",
-    expectedVpkSha256: "7f34d6440ffecc0400119b101474e97e7c91e664a8a65a06a887cf605e6290d7",
-    archiveMember: "showrank_barebones_dir.vpk"
-  },
-  showrank_barebones_no_missing: {
+    fileName: "showrank_barebones_10_8.7z",
+    size: 23230,
+    md5: "3609e47d6d39a70ea595aca41a1d1488",
+    sha256: "016f1e6470785b1f78c2da4df956ca54bb477f84bf812cd1936b87bba837263b",
+    downloadUrl: "https://gamebanana.com/dl/1778935"
+  }),
+  no_missing: Object.freeze({
     fileId: "1778934",
-    modUrl: "https://gamebanana.com/mods/download/681028#FileInfo_1778934",
-    downloadUrl: "https://gamebanana.com/dl/1778934",
-    expectedFileName: "showrank_barebones_no_missing_10_8.7z",
-    expectedSize: 19486,
-    expectedSha256: "ba2cf9c965884859f0520ef126e03b60d69c32cb6a6efdf70b5d4ac69d115558",
-    expectedVpkSha256: "2d46ddf5285fbb6b9bffcb94b7b02cc3286b345ed7a1da310a193901327662f9",
-    archiveMember: "showrank_barebones_no_missing_dir.vpk"
-  }
-};
+    fileName: "showrank_barebones_no_missing_10_8.7z",
+    size: 19486,
+    md5: "bd06807b9a07aa1f9eb62569341f81ab",
+    sha256: "ba2cf9c965884859f0520ef126e03b60d69c32cb6a6efdf70b5d4ac69d115558",
+    downloadUrl: "https://gamebanana.com/dl/1778934"
+  })
+});
 
-export const SHOWRANK_REQUIRED_VPK_PATHS = [
-  "panorama/layout/citadel_db_page_profile.vxml_c",
-  "panorama/layout/citadel_hud_top_bar.vxml_c",
-  "panorama/layout/citadel_hud_top_bar_player.vxml_c",
-  "panorama/layout/citadel_ui_context_menu_player.vxml_c",
-  "panorama/layout/hud_escape_menu.vxml_c",
-  "panorama/layout/players_list_entry.vxml_c",
-  "panorama/layout/profile_card.vxml_c",
-  "panorama/scripts/showrank_barebones.vjs_c",
-  "panorama/styles/showrank_barebones_topbar.vcss_c"
-];
 
 
 export const TOPBAR_REQUIRED_VPK_PATHS = [

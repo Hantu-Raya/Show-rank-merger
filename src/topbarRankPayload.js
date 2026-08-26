@@ -1,22 +1,126 @@
 import { compilePanoramaLayoutResource, compilePanoramaStyleResource, compileTextResource } from "./source2ResourceWriter.js";
 import { normalizeVpkPath } from "./rankMerge.js";
+import { TOPBAR_RANK_SOURCE_TEXTS_BY_EDITION } from "./payload/topbarRankSources.generated.js";
 import {
-  TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES,
-  TOPBAR_RANK_SOURCE_TEXTS
-} from "./payload/topbarRankSources.generated.js";
-import { TOPBAR_RANK_SOURCE_BASE_URLS, TOPBAR_RANK_SOURCE_PATHS } from "./topbarRankSourceManifest.js";
+  TOPBAR_RANK_DEFAULT_EDITION,
+  TOPBAR_RANK_SOURCE_PATHS,
+  assertTopbarRankEdition
+} from "./topbarRankSourceManifest.js";
 
-const ALERT_MARKERS = ["ShowRankBarebonesMissing", "ShowRankBarebonesNotification", "MISSING_WINDOW", "ENEMY MISSING"];
-const NO_MISSING_PORTRAIT_NEUTRALIZATION = "CitadelHudTopBarPlayer.ShowRankBarebonesTopbarPlayer #HeroContents";
+const BAREBONES_SOURCE_PATH = "panorama/scripts/showrank_barebones.js";
+const MOD_ICONS_DATA_PATH = "panorama/scripts/recent_purchases_redux_data.js";
+const JAVASCRIPT_SOURCE_PATHS = TOPBAR_RANK_SOURCE_PATHS.filter((path) => path.endsWith(".js"));
+const DATA_PUBLIC_GLOBALS = ["MOD_ICONS", "HERO_IMAGES"];
+const BAREBONES_PANEL_APIS = [
+  "ShowRankBarebonesRefresh",
+  "ShowRankBarebonesOpenStatlocker",
+  "ShowRankBarebonesOpenPlayerProfile",
+  "ShowRankBarebonesCopyAccount"
+];
+const BAREBONES_GLOBAL_APIS = [
+  "ShowRankBarebonesEscapeOpen",
+  "ShowRankBarebonesEscapeOut"
+];
+const PROFILE_PAGE_MARKERS = [
+  "ShowRankBarebonesProfilePageAccount",
+  "ShowRankBarebonesProfilePageRankImage",
+  "ProfileStatsCommunityButton",
+  "ProfileStatsCommunityPanel",
+  "ProfileStatsCommunityDisplayCommunity",
+  "ProfileStatsCommunityDisplayPercentile"
+];
+const PROFILE_CARD_MARKERS = ["ProfileStatsCommunityContextAccount"];
+const PROFILE_CONTEXT_MARKERS = [
+  "ProfileStatsCommunityPlayerProfileRow",
+  "ShowRankBarebonesOpenPlayerProfile"
+];
+const MISSING_ENEMY_RUNTIME_MARKERS = [
+  "ShowRankBarebonesMissingWindowExpired",
+  "ShowRankBarebonesMissing",
+  "MISSING_",
+  "missingSession",
+  "missingLeader",
+  "missingRunning",
+  "missingChecks",
+  "missingNotification",
+  "missingRecords",
+  "missingHealth",
+  "missingWindow",
+  "missingActive",
+  "missingToast",
+  "refreshMissing",
+  "scheduleMissing",
+  "setMissing",
+  "resetMissing",
+  "readMissing",
+  "parseGameClock",
+  "GameClock",
+  "GameTime",
+  "gameClock",
+  "HealthVisible",
+  "HealthHidden"
+];
+const MISSING_ENEMY_LAYOUT_MARKERS = [
+  "ShowRankBarebonesMissing",
+  "MISSING"
+];
+const MISSING_ENEMY_STYLE_MARKERS = [
+  "ShowRankBarebonesMissing",
+  "MISSING",
+  "HealthVisible",
+  "HealthHidden"
+];
+const UNRESOLVED_COMPOSITION_MARKERS = [
+  "PROFILE_STATS_COMMUNITY_RUNTIME",
+  "PROFILE_STATS_COMMUNITY_STYLES",
+  "VIEWED_PROFILE_IDENTITY_POLICY"
+];
+const CLOSURE_OPTIONS = {
+  compilationLevel: "ADVANCED",
+  languageIn: "ECMASCRIPT_2020",
+  languageOut: "ECMASCRIPT5",
+  rewritePolyfills: false,
+  warningLevel: "QUIET"
+};
 
 export const TOPBAR_RANK_REQUIRED_OUTPUT_PATHS = TOPBAR_RANK_SOURCE_PATHS.map(outputPathForSource);
+function requireProfileMarkers(sourceTexts) {
+  requireTokens(
+    sourceTexts["panorama/layout/citadel_db_page_profile.xml"],
+    PROFILE_PAGE_MARKERS,
+    "panorama/layout/citadel_db_page_profile.xml"
+  );
+  requireTokens(
+    sourceTexts["panorama/layout/profile_card.xml"],
+    PROFILE_CARD_MARKERS,
+    "panorama/layout/profile_card.xml"
+  );
+  requireTokens(
+    sourceTexts["panorama/layout/citadel_ui_context_menu_player.xml"],
+    PROFILE_CONTEXT_MARKERS,
+    "panorama/layout/citadel_ui_context_menu_player.xml"
+  );
+}
 
-function bundledSourceTextsForEdition(expectedVariantId) {
-  if (expectedVariantId === "showrank_barebones") return TOPBAR_RANK_SOURCE_TEXTS;
-  if (expectedVariantId === "showrank_barebones_no_missing") {
-    return { ...TOPBAR_RANK_SOURCE_TEXTS, ...TOPBAR_RANK_NO_MISSING_SOURCE_OVERRIDES };
+function forbidMissingEnemyMarkers(sourceTexts, editionId) {
+  if (editionId !== "no_missing") return;
+  const checks = [
+    ["panorama/scripts/showrank_barebones.js", MISSING_ENEMY_RUNTIME_MARKERS],
+    ["panorama/layout/citadel_hud_top_bar_player.xml", MISSING_ENEMY_LAYOUT_MARKERS],
+    ["panorama/styles/showrank_barebones_topbar.css", MISSING_ENEMY_STYLE_MARKERS]
+  ];
+  for (const [path, markers] of checks) {
+    const text = sourceTexts[path];
+    for (const marker of markers) {
+      if (text.toLowerCase().includes(marker.toLowerCase())) {
+        throw new Error(`${path} contains forbidden no-missing marker: ${marker}`);
+      }
+    }
   }
-  throw new Error(`Unknown Topbar Rank edition: ${expectedVariantId}`);
+}
+
+function cloneSourceTexts(sourceTexts) {
+  return Object.fromEntries(Object.entries(sourceTexts).map(([path, text]) => [path, String(text)]));
 }
 
 function requireTokens(text, tokens, label) {
@@ -30,84 +134,68 @@ function forbidTokens(text, tokens, label) {
     if (text.includes(token)) throw new Error(`${label} contains forbidden token: ${token}`);
   }
 }
-
-function validateSourceInvariants(sourceTexts, expectedVariantId) {
-  if (!TOPBAR_RANK_SOURCE_BASE_URLS[expectedVariantId]) {
-    throw new Error(`Unknown Topbar Rank edition: ${expectedVariantId}`);
+function forbidUnresolvedCompositionPlaceholders(sourceTexts) {
+  for (const [path, text] of Object.entries(sourceTexts)) {
+    for (const marker of UNRESOLVED_COMPOSITION_MARKERS) {
+      if (text.includes(marker)) {
+        throw new Error(`${path} contains unresolved composition placeholder: ${marker}`);
+      }
+    }
   }
+}
 
-  const sourcePaths = Object.keys(sourceTexts);
+function validateSourceInvariants(sourceTexts, editionId) {
   const missingSources = TOPBAR_RANK_SOURCE_PATHS.filter((path) => !(path in sourceTexts));
-  const unexpectedSources = sourcePaths.filter((path) => !TOPBAR_RANK_SOURCE_PATHS.includes(path));
-  if (missingSources.length > 0) throw new Error(`topbar_rank source missing: ${missingSources.join(", ")}`);
-  if (unexpectedSources.length > 0) throw new Error(`topbar_rank source has unexpected paths: ${unexpectedSources.join(", ")}`);
-
-  const topbar = sourceTexts["panorama/layout/citadel_hud_top_bar.xml"];
-  const player = sourceTexts["panorama/layout/citadel_hud_top_bar_player.xml"];
-  const escapeMenu = sourceTexts["panorama/layout/hud_escape_menu.xml"];
-  const playerList = sourceTexts["panorama/layout/players_list_entry.xml"];
-  const profileCard = sourceTexts["panorama/layout/profile_card.xml"];
-  const dashboardProfile = sourceTexts["panorama/layout/citadel_db_page_profile.xml"];
-  const heroShop = sourceTexts["panorama/layout/citadel_hud_hero_shop.xml"];
-  const barebonesRuntime = sourceTexts["panorama/scripts/showrank_barebones.js"];
-  const modIcons = sourceTexts["panorama/scripts/recent_purchases_redux_data.js"];
-
-  requireTokens(topbar, [
-    "rejuvnbufftimer.vjs_c",
-    "urntracker.vjs_c",
-    "ShowRankBarebonesTeamAverageLayer"
-  ], "citadel_hud_top_bar.xml");
-  requireTokens(player, [
-    "unspent.vjs_c",
-    "showrank_barebones.vjs_c",
-    "ShowRankBarebonesTopbarRankImage"
-  ], "citadel_hud_top_bar_player.xml");
-  requireTokens(heroShop, [
-    "recent_purchases_redux_data.vjs_c",
-    "recent_purchases_redux.vjs_c"
-  ], "citadel_hud_hero_shop.xml");
-  requireTokens(playerList, ["ShowRankBarebonesPlayerListRankImage"], "players_list_entry.xml");
-  requireTokens(profileCard, ["ShowRankBarebonesRankImage"], "profile_card.xml");
-  requireTokens(dashboardProfile, [
-    "ShowRankBarebonesProfilePage",
-    "showrank_barebones.vjs_c"
-  ], "citadel_db_page_profile.xml");
-  requireTokens(escapeMenu, ["CitadelResumePlaying()", "showrank_barebones.vjs_c"], "hud_escape_menu.xml");
-  requireTokens(barebonesRuntime, [
-    "ShowRankBarebonesEscapeOpen",
-    "ShowRankBarebonesOpenStatlocker"
-  ], "showrank_barebones.js");
-  requireTokens(modIcons, ["MOD_ICONS"], "recent_purchases_redux_data.js");
-
-  const combinedSource = sourcePaths.map((path) => sourceTexts[path]).join("\n");
-  if (expectedVariantId === "showrank_barebones") {
-    requireTokens(combinedSource, ALERT_MARKERS, "Barebones alert edition");
-  } else {
-    forbidTokens(combinedSource, ALERT_MARKERS, "Barebones no-missing edition");
-    requireTokens(
-      sourceTexts["panorama/styles/showrank_barebones_topbar.css"],
-      [NO_MISSING_PORTRAIT_NEUTRALIZATION, "opacity: 1;"],
-      "showrank_barebones_topbar.css"
-    );
+  if (missingSources.length > 0) throw new Error(`Topbar Rank source missing: ${missingSources.join(", ")}`);
+  forbidUnresolvedCompositionPlaceholders(sourceTexts);
+  if ("panorama/scripts/showrank_common.js" in sourceTexts) {
+    throw new Error("Topbar Rank source contains removed showrank_common.js");
   }
+  if ("panorama/scripts/topbar_rank_rank_bridge.js" in sourceTexts) {
+    throw new Error("Topbar Rank source contains removed topbar_rank_rank_bridge.js");
+  }
+
+  for (const [path, text] of Object.entries(sourceTexts)) {
+    forbidTokens(text, ["showrank_common", "topbar_rank_rank_bridge"], path);
+  }
+
+  const barebones = sourceTexts[BAREBONES_SOURCE_PATH];
+  const requiredBarebonesTokens = [
+    'RANK_API_BASE_URL = "https://api.deadlock-api.com/v1/players"',
+    'return RANK_API_BASE_URL + "/" + account + "/rank/image?format="',
+    'return RANK_API_BASE_URL + "/rank/image?account_ids="',
+    "/rank/image?format=",
+    "/rank/image?account_ids=",
+    "CitadelShowProfilePageForAccount",
+    ...BAREBONES_PANEL_APIS,
+    ...BAREBONES_GLOBAL_APIS
+  ];
+  if (editionId === "alert") requiredBarebonesTokens.push("ShowRankBarebonesMissingWindowExpired");
+  requireTokens(barebones, requiredBarebonesTokens, BAREBONES_SOURCE_PATH);
+  if (editionId === "no_missing") {
+    forbidTokens(barebones, ["ShowRankBarebonesMissingWindowExpired"], BAREBONES_SOURCE_PATH);
+    forbidMissingEnemyMarkers(sourceTexts, editionId);
+  }
+  forbidTokens(barebones, ["/rank-predict/image"], BAREBONES_SOURCE_PATH);
+  requireTokens(sourceTexts[MOD_ICONS_DATA_PATH], ["MOD_ICONS"], MOD_ICONS_DATA_PATH);
+  requireProfileMarkers(sourceTexts);
 }
 
 function outputPathForSource(path) {
   if (path.endsWith(".xml")) return path.replace(/\.xml$/, ".vxml_c");
   if (path.endsWith(".js")) return path.replace(/\.js$/, ".vjs_c");
   if (path.endsWith(".css")) return path.replace(/\.css$/, ".vcss_c");
-  throw new Error(`Unsupported topbar_rank source type: ${path}`);
+  throw new Error(`Unsupported Topbar Rank source type: ${path}`);
 }
 
-const JAVASCRIPT_SOURCE_PATHS = TOPBAR_RANK_SOURCE_PATHS.filter((path) => path.endsWith(".js"));
-const BAREBONES_PUBLIC_APIS = [
-  "ShowRankBarebonesRefresh",
-  "ShowRankBarebonesOpenStatlocker",
-  "ShowRankBarebonesCopyAccount",
-  "ShowRankBarebonesEscapeOpen",
-  "ShowRankBarebonesEscapeOut"
-];
-const DATA_PUBLIC_GLOBALS = ["MOD_ICONS", "HERO_IMAGES"];
+function resolveClosureCompiler(closureModule) {
+  for (const candidate of [closureModule.default, closureModule["module.exports"], closureModule.gjd, closureModule.j, closureModule]) {
+    if (typeof candidate === "function") return candidate;
+    if (candidate && typeof candidate.default === "function") return candidate.default;
+    if (candidate && typeof candidate.gjd === "function") return candidate.gjd;
+  }
+  throw new Error("google-closure-compiler-js did not expose a compiler function");
+}
 
 function replaceCompilerInputAtMostOnce(source, before, after, path) {
   const first = source.indexOf(before);
@@ -133,7 +221,7 @@ function exportDataGlobal(source, symbol, path) {
 }
 
 function prepareJavascriptSource(path, source) {
-  if (path === "panorama/scripts/recent_purchases_redux_data.js") {
+  if (path === MOD_ICONS_DATA_PATH) {
     return DATA_PUBLIC_GLOBALS.reduce((prepared, symbol) => exportDataGlobal(prepared, symbol, path), source);
   }
   if (path === "panorama/scripts/rejuvnbufftimer.js") {
@@ -176,20 +264,17 @@ function decodeClosureUnicodeEscapes(source) {
   });
 }
 
-function requiredPublicSymbols(path, expectedVariantId) {
-  if (path === "panorama/scripts/recent_purchases_redux_data.js") return DATA_PUBLIC_GLOBALS;
-  if (path !== "panorama/scripts/showrank_barebones.js") return [];
-  return BAREBONES_PUBLIC_APIS;
+function requiredPublicSymbols(path) {
+  if (path === MOD_ICONS_DATA_PATH) return DATA_PUBLIC_GLOBALS;
+  if (path !== BAREBONES_SOURCE_PATH) return [];
+  return [...BAREBONES_PANEL_APIS, ...BAREBONES_GLOBAL_APIS];
 }
 
-async function compileJavascriptSource(path, source, expectedVariantId, compile, externs) {
+async function compileJavascriptSource(path, source, editionId, compile, externs) {
   const result = await compile({
-    compilationLevel: "ADVANCED",
+    ...CLOSURE_OPTIONS,
     externs: [{ path: "panorama.externs.js", src: externs }],
-    jsCode: [{ path, src: prepareJavascriptSource(path, source) }],
-    languageIn: "ECMASCRIPT_2020",
-    languageOut: "ECMASCRIPT5",
-    warningLevel: "QUIET"
+    jsCode: [{ path, src: prepareJavascriptSource(path, source) }]
   });
   if (result.errors?.length > 0) {
     throw new Error(`Closure Compiler failed for ${path}: ${result.errors.map((error) => (
@@ -198,49 +283,47 @@ async function compileJavascriptSource(path, source, expectedVariantId, compile,
   }
   const compiledSource = decodeClosureUnicodeEscapes(result.compiledCode);
   if (!compiledSource) throw new Error(`Closure Compiler did not produce ${path}`);
+
   const sourceBytes = new TextEncoder().encode(source).byteLength;
   const outputBytes = new TextEncoder().encode(compiledSource).byteLength;
   if (outputBytes >= sourceBytes) {
     throw new Error(`Closure Compiler did not reduce ${path}: ${outputBytes} >= ${sourceBytes}`);
   }
-  const publicSymbols = requiredPublicSymbols(path, expectedVariantId);
+  const publicSymbols = requiredPublicSymbols(path);
   for (const publicSymbol of publicSymbols) {
     if (!compiledSource.includes(publicSymbol)) {
       throw new Error(`Closure Compiler removed public symbol from ${path}: ${publicSymbol}`);
     }
   }
-  if (
-    path === "panorama/scripts/showrank_barebones.js"
-    && expectedVariantId === "showrank_barebones"
-    && !compiledSource.includes("ShowRankBarebonesMissingWindowExpired")
-  ) {
-    throw new Error("Closure Compiler removed the alert missing-window class marker");
+  if (path === BAREBONES_SOURCE_PATH && editionId === "alert") {
+    requireTokens(compiledSource, ["ShowRankBarebonesMissingWindowExpired"], "Closure ADVANCED output");
+  }
+  if (path === BAREBONES_SOURCE_PATH && editionId === "no_missing") {
+    forbidMissingEnemyMarkers({
+      [BAREBONES_SOURCE_PATH]: compiledSource,
+      "panorama/layout/citadel_hud_top_bar_player.xml": "",
+      "panorama/styles/showrank_barebones_topbar.css": ""
+    }, editionId);
   }
   return { source: compiledSource, metadata: { sourceBytes, outputBytes, publicSymbols } };
 }
 
-async function compileJavascriptSources(sourceTexts, expectedVariantId) {
-  const closureCompilerModule = await import("google-closure-compiler-js");
-  const compile = closureCompilerModule.compile
-    || closureCompilerModule.default?.compile
-    || closureCompilerModule.default;
-  if (typeof compile !== "function") {
-    throw new Error("google-closure-compiler-js does not expose a compiler function");
-  }
+async function compileJavascriptSources(sourceTexts, editionId) {
+  const compile = resolveClosureCompiler(await import("google-closure-compiler-js"));
   const externs = buildClosureExterns(sourceTexts);
   const compiledEntries = await Promise.all(JAVASCRIPT_SOURCE_PATHS.map(async (path) => [
     path,
-    await compileJavascriptSource(path, sourceTexts[path], expectedVariantId, compile, externs)
+    await compileJavascriptSource(path, sourceTexts[path], editionId, compile, externs)
   ]));
   const compiledByPath = Object.fromEntries(compiledEntries);
   const scripts = Object.fromEntries(compiledEntries.map(([path, compiled]) => [path, compiled.metadata]));
   return {
     compiledByPath,
     metadata: {
-      compilationLevel: "ADVANCED",
+      compilationLevel: CLOSURE_OPTIONS.compilationLevel,
       externs,
-      inputLanguage: "ECMASCRIPT_2020",
-      outputLanguage: "ECMASCRIPT5",
+      inputLanguage: CLOSURE_OPTIONS.languageIn,
+      outputLanguage: CLOSURE_OPTIONS.languageOut,
       sourceBytes: Object.values(scripts).reduce((total, script) => total + script.sourceBytes, 0),
       outputBytes: Object.values(scripts).reduce((total, script) => total + script.outputBytes, 0),
       scripts
@@ -252,22 +335,33 @@ function compileSource(path, text) {
   if (path.endsWith(".xml")) return compilePanoramaLayoutResource(text);
   if (path.endsWith(".js")) return compileTextResource(text, { resourceVersion: 4 });
   if (path.endsWith(".css")) return compilePanoramaStyleResource(text);
-  throw new Error(`Unsupported topbar_rank source type: ${path}`);
+  throw new Error(`Unsupported Topbar Rank source type: ${path}`);
 }
 
 export async function buildTopbarRankPayload({
-  expectedVariantId = "showrank_barebones",
-  sourceTexts = bundledSourceTextsForEdition(expectedVariantId)
+  editionId = TOPBAR_RANK_DEFAULT_EDITION,
+  sourceTexts: inputSourceTexts
 } = {}) {
-  validateSourceInvariants(sourceTexts, expectedVariantId);
-  const javascript = await compileJavascriptSources(sourceTexts, expectedVariantId);
+  const resolvedEditionId = assertTopbarRankEdition(editionId);
+  const sourceTexts = cloneSourceTexts(inputSourceTexts || TOPBAR_RANK_SOURCE_TEXTS_BY_EDITION[resolvedEditionId]);
+  validateSourceInvariants(sourceTexts, resolvedEditionId);
+
+  const javascript = await compileJavascriptSources(sourceTexts, resolvedEditionId);
   const files = await Promise.all(TOPBAR_RANK_SOURCE_PATHS.map(async (path) => ({
     path: outputPathForSource(path),
-    bytes: await compileSource(path, path.endsWith(".js") ? javascript.compiledByPath[path].source : sourceTexts[path])
+    bytes: await compileSource(
+      path,
+      path.endsWith(".js") ? javascript.compiledByPath[path].source : sourceTexts[path]
+    )
   })));
   const outputPathSet = new Set(files.map((file) => normalizeVpkPath(file.path)));
   const missing = TOPBAR_RANK_REQUIRED_OUTPUT_PATHS.filter((path) => !outputPathSet.has(normalizeVpkPath(path)));
-  if (missing.length > 0) throw new Error(`Generated topbar_rank payload missing: ${missing.join(", ")}`);
+  if (missing.length > 0) throw new Error(`Generated Topbar Rank payload missing: ${missing.join(", ")}`);
 
-  return { files, sourceTexts, closureMetadata: javascript.metadata };
+  return {
+    editionId: resolvedEditionId,
+    files,
+    sourceTexts,
+    closure: javascript.metadata
+  };
 }

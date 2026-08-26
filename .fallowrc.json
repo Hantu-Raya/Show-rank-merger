@@ -6,7 +6,7 @@
     "scripts/*.mjs"
   ],
   "ignorePatterns": [
-    "src/payload/topbar_rank/panorama/**"
+    "src/payload/topbar_rank/**"
   ],
   "ignoreDependencies": [
     "@astrojs/react",
@@ -26,7 +26,7 @@
       "src/components/RankMergerIsland.jsx",
       "src/topbarRankPayload.js",
       "src/vpkReader.js",
-      "src/payload/topbar_rank/panorama/**"
+      "src/payload/topbar_rank/**"
     ]
   },
   "audit": {

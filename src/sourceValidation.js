@@ -1,6 +1,8 @@
 import { extractArchiveMember } from "./archiveExtractor.js";
 import { toUint8Array } from "./bytes.js";
 import {
+  SHOWRANK_RELEASES,
+  SHOWRANK_REQUIRED_VPK_PATHS,
   TOPBAR_REQUIRED_VPK_PATHS,
   TOPBAR_SOURCE
 } from "./gamebananaSources.js";
@@ -64,4 +66,35 @@ export async function validateTopbarArchive(file, bytesInput) {
     throw new Error(`Top Bar Plus VPK missing required paths: ${missing.join(", ")}`);
   }
   return { sha256, parsed, missing, archiveMember, vpkSha256 };
+}
+
+export function detectShowrankEditionBySha256(sha256) {
+  for (const [editionId, source] of Object.entries(SHOWRANK_RELEASES)) {
+    if (source.sha256 === sha256) return editionId;
+  }
+  return "";
+}
+
+export async function validateShowrankArchive(file, bytesInput, expectedEditionId = "") {
+  const bytes = toUint8Array(bytesInput, "Archive input");
+  const sha256 = await sha256Hex(bytes);
+  const editionId = detectShowrankEditionBySha256(sha256);
+  if (!editionId) {
+    throw new Error(`ShowRank archive SHA-256 is not a supported 8/26 edition: ${sha256}`);
+  }
+  if (expectedEditionId && editionId !== expectedEditionId) {
+    throw new Error(`ShowRank archive edition mismatch: expected ${expectedEditionId}, got ${editionId}`);
+  }
+
+  const source = SHOWRANK_RELEASES[editionId];
+  assertSize(bytes, source.size, "ShowRank archive");
+  const vpkBytes = await extractArchiveMember(bytes, displayName(file), source.archiveMember);
+  const vpkSha256 = await sha256Hex(vpkBytes);
+  assertSha256(vpkSha256, source.vpkSha256, "ShowRank embedded VPK");
+  const parsed = parseVpk(vpkBytes);
+  const { missing } = validateRequiredPaths(parsed.files, SHOWRANK_REQUIRED_VPK_PATHS);
+  if (missing.length > 0) {
+    throw new Error(`ShowRank VPK missing required paths: ${missing.join(", ")}`);
+  }
+  return { editionId, sha256, parsed, missing, archiveMember: source.archiveMember, vpkSha256 };
 }

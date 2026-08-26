@@ -2,8 +2,8 @@ import { buildTopbarRankPayload } from "./topbarRankPayload.js";
 import { fetchLatestTopbarRankSourceTexts } from "./topbarRankSourceFetch.js";
 import { mergeFilesWithPriority } from "./rankMerge.js";
 import { parseVpk } from "./vpkReader.js";
-import { TOPBAR_SOURCE } from "./gamebananaSources.js";
-import { validateTopbarArchive } from "./sourceValidation.js";
+import { SHOWRANK_RELEASES, TOPBAR_SOURCE } from "./gamebananaSources.js";
+import { validateShowrankArchive, validateTopbarArchive } from "./sourceValidation.js";
 import { writeVpk } from "./vpkWriter.js";
 
 function toBytes(input) {
@@ -23,6 +23,7 @@ function outputFilenameForMergedVpk(editionId) {
 export async function buildMergedRankVpk({
   baseVpkBytes = null,
   topbarArchiveBytes,
+  showrankArchiveBytes,
   editionId = "alert",
   payloadSourceTexts = null,
   fetchLatestPayloadSource = true
@@ -30,6 +31,11 @@ export async function buildMergedRankVpk({
   const topbarValidation = await validateTopbarArchive(
     { name: TOPBAR_SOURCE.expectedFileName },
     toBytes(topbarArchiveBytes)
+  );
+  const showrankValidation = await validateShowrankArchive(
+    { name: SHOWRANK_RELEASES[editionId]?.fileName || "showrank.7z" },
+    toBytes(showrankArchiveBytes),
+    editionId
   );
   const baseParsed = baseVpkBytes ? parseVpk(toBytes(baseVpkBytes)) : { files: [] };
   let sourceTexts = payloadSourceTexts;
@@ -58,6 +64,7 @@ export async function buildMergedRankVpk({
     sourceOrigin,
     validation: {
       topbar: topbarValidation,
+      showrank: showrankValidation,
       payload
     }
   };

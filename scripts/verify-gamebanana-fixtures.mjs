@@ -4,7 +4,7 @@ import { buildMergedRankVpk } from "../src/buildMergedRankVpk.js";
 import { SHOWRANK_RELEASES, TOPBAR_REQUIRED_VPK_PATHS, TOPBAR_SOURCE } from "../src/gamebananaSources.js";
 import { normalizeVpkPath } from "../src/rankMerge.js";
 import { sha256Hex } from "../src/sha256.js";
-import { validateRequiredPaths, validateTopbarArchive } from "../src/sourceValidation.js";
+import { validateRequiredPaths, validateShowrankArchive, validateTopbarArchive } from "../src/sourceValidation.js";
 import { TOPBAR_RANK_EDITIONS } from "../src/topbarRankSourceManifest.js";
 import { TOPBAR_RANK_REQUIRED_OUTPUT_PATHS } from "../src/topbarRankPayload.js";
 import { parseVpk } from "../src/vpkReader.js";
@@ -36,9 +36,17 @@ assert.deepEqual(validateRequiredPaths(topbarValidation.parsed.files, TOPBAR_REQ
 console.log(`OK Top Bar Plus v40d: ${topbarValidation.parsed.files.length} VPK files`);
 
 for (const editionId of TOPBAR_RANK_EDITIONS) {
-  await verifyRelease(editionId, SHOWRANK_RELEASES[editionId]);
+  const showrankBytes = await verifyRelease(editionId, SHOWRANK_RELEASES[editionId]);
+  const showrankValidation = await validateShowrankArchive(
+    { name: SHOWRANK_RELEASES[editionId].fileName },
+    showrankBytes,
+    editionId
+  );
+  assert.equal(showrankValidation.editionId, editionId);
+  assert.equal(showrankValidation.vpkSha256, SHOWRANK_RELEASES[editionId].vpkSha256);
   const merged = await buildMergedRankVpk({
     topbarArchiveBytes: topbarBytes,
+    showrankArchiveBytes: showrankBytes,
     editionId,
     fetchLatestPayloadSource: false
   });

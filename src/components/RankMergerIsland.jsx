@@ -3,11 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import { buildMergedRankVpk } from "../buildMergedRankVpk.js";
 import { downloadBytes } from "../download.js";
 import { buildGitCommitInfoRequestUrl, isGitCommitInfoPayload } from "../gitCommitInfoRefresh.js";
-import { SHOWRANK_RELEASES, TOPBAR_REQUIRED_VPK_PATHS, TOPBAR_SOURCE } from "../gamebananaSources.js";
+import { SHOWRANK_RELEASES, SHOWRANK_REQUIRED_VPK_PATHS, TOPBAR_REQUIRED_VPK_PATHS, TOPBAR_SOURCE } from "../gamebananaSources.js";
 import { sha256Hex } from "../sha256.js";
-import { validateTopbarArchive } from "../sourceValidation.js";
+import { validateShowrankArchive, validateTopbarArchive } from "../sourceValidation.js";
 
 const EMPTY_RESULT = { bytes: null, filename: "", overwrittenPaths: [], fileCount: 0, editionId: "", status: "", error: "" };
+const SHOWRANK_EDITION_LABELS = {
+  alert: "Barebones with missing-enemy alerts",
+  no_missing: "Barebones without missing-enemy alerts"
+};
 
 function formatBytes(bytes) {
   const value = Number(bytes || 0);
@@ -25,6 +29,7 @@ function emptySlot() {
     sha256: "",
     pathCount: 0,
     parsed: null,
+    editionId: "",
     isDragging: false
   };
 }
@@ -32,15 +37,21 @@ function emptySlot() {
 function initialState() {
   return {
     topbar: emptySlot(),
+    showrank: emptySlot(),
     result: EMPTY_RESULT,
     isBusy: false
   };
 }
 
-function requiredMessage(topbar) {
-  if (!topbar.bytes) return `Upload ${TOPBAR_SOURCE.expectedFileName}.`;
-  if (topbar.error) return "Fix the input error before downloading.";
-  return "Ready to build the selected Barebones edition from the current standalone source.";
+function requiredMessage(topbar, showrank, selectedFileName) {
+  if (!topbar.bytes || !showrank.bytes) {
+    const missing = [];
+    if (!topbar.bytes) missing.push(TOPBAR_SOURCE.expectedFileName);
+    if (!showrank.bytes) missing.push(selectedFileName);
+    return `Upload ${missing.join(" and ")}.`;
+  }
+  if (topbar.error || showrank.error) return "Fix the archive validation error before downloading.";
+  return "Ready to build the selected Barebones edition.";
 }
 
 async function readFileBytes(file) {
@@ -108,14 +119,15 @@ function UploadCard({ title, hint, accept, slot, onFile, children }) {
 
 export default function RankMergerIsland({ gitCommitInfo = null }) {
   const topbarRunRef = useRef(0);
+  const showrankRunRef = useRef(0);
   const [appState, setAppState] = useState(initialState);
   const [missingAlerts, setMissingAlerts] = useState(true);
-  const { topbar, result, isBusy } = appState;
+  const { topbar, showrank, result, isBusy } = appState;
   const editionId = missingAlerts ? "alert" : "no_missing";
   const [freshGitCommitInfo, setFreshGitCommitInfo] = useState(null);
-  const helperText = requiredMessage(topbar);
   const showrankRelease = SHOWRANK_RELEASES[editionId];
-  const canBuild = Boolean(topbar.bytes && !topbar.error && !isBusy);
+  const helperText = requiredMessage(topbar, showrank, showrankRelease.fileName);
+  const canBuild = Boolean(topbar.bytes && showrank.bytes && !topbar.error && !showrank.error && !isBusy);
   const activeGitCommitInfo = freshGitCommitInfo || gitCommitInfo;
 
   useEffect(() => {
@@ -168,10 +180,45 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
     }
   }
 
+  async function handleShowrankFile(file, dragging) {
+    if (!file) {
+      if (typeof dragging === "boolean") patchSlot(setAppState, "showrank", { isDragging: dragging });
+      return;
+    }
+
+    const selectedEditionId = editionId;
+    const run = ++showrankRunRef.current;
+    resetResult(setAppState);
+    patchSlot(setAppState, "showrank", { ...emptySlot(), file, status: "Hashing…" });
+    try {
+      const bytes = await readFileBytes(file);
+      const sha256 = await sha256Hex(bytes);
+      if (run === showrankRunRef.current) {
+        patchSlot(setAppState, "showrank", { bytes, sha256, status: "Extracting ShowRank VPK…" });
+        const validation = await validateShowrankArchive(file, bytes, selectedEditionId);
+        if (run === showrankRunRef.current) {
+          patchSlot(setAppState, "showrank", {
+            bytes,
+            sha256: validation.sha256,
+            parsed: validation.parsed,
+            editionId: validation.editionId,
+            pathCount: SHOWRANK_REQUIRED_VPK_PATHS.length,
+            status: `Validated ${SHOWRANK_EDITION_LABELS[validation.editionId]}`
+          });
+        }
+      }
+    } catch (error) {
+      if (run === showrankRunRef.current) {
+        patchSlot(setAppState, "showrank", { bytes: null, error: error?.message || String(error), status: "" });
+      }
+    }
+  }
+
   function handleMissingAlertsChange(event) {
     if (isBusy) return;
+    ++showrankRunRef.current;
     setMissingAlerts(event.currentTarget.checked);
-    resetResult(setAppState);
+    setAppState((state) => ({ ...state, showrank: emptySlot(), result: EMPTY_RESULT }));
   }
   async function handleBuild() {
     if (!canBuild) return;
@@ -184,6 +231,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
     try {
       const merged = await buildMergedRankVpk({
         topbarArchiveBytes: topbar.bytes,
+        showrankArchiveBytes: showrank.bytes,
         editionId: buildEditionId
       });
       downloadBytes(merged.filename, merged.bytes);
@@ -227,7 +275,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
               </a>
             ) : null}
           </div>
-          <p>Build a current standalone Topbar Rank Barebones VPK from Top Bar Plus. Missing-enemy alerts are optional. Alert mode watches native health visibility for the first eight minutes; files stay on your machine.</p>
+          <p>Build a current Topbar Rank Barebones VPK from the exact Top Bar Plus V40D archive and one exact 8/26 ShowRank Barebones archive. Files stay on your machine.</p>
         </div>
         <div className="header-actions" aria-label="Project support actions">
           <a className="support-button" href="https://ko-fi.com/hantuaraya" target="_blank" rel="noreferrer" aria-label="Donate on Ko-fi">
@@ -254,11 +302,15 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
             Download Top Bar Plus
           </a>
         </UploadCard>
-        <section className="card">
-          <label htmlFor="missing-alerts">
-            <span>Missing-enemy alerts</span>
-            <small>Alert mode notifies when an enemy's native health is hidden during the first eight minutes. It never means missing rank or API data.</small>
-          </label>
+        <UploadCard
+          key={editionId}
+          title={`Required: ${showrankRelease.fileName}`}
+          hint={<>Exact current <a href="https://gamebanana.com/mods/681028" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>ShowRank Barebones</a> archive. Archive and embedded VPK SHA-256 identities must match the selected edition.</>}
+          accept=".7z,application/x-7z-compressed"
+          slot={showrank}
+          onFile={handleShowrankFile}
+        >
+          <label htmlFor="missing-alerts">Missing-enemy alerts</label>
           <input
             id="missing-alerts"
             type="checkbox"
@@ -266,18 +318,19 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
             disabled={isBusy}
             onChange={handleMissingAlertsChange}
           />
-          <p className="helper">On builds the alert edition; off builds the no-missing edition. The checkbox is locked while a build runs.</p>
-          <a href={showrankRelease.downloadUrl} target="_blank" rel="noreferrer">
+          <p className="helper">On requires the alert archive. Off requires the no-missing archive. Changing editions clears the selected ShowRank file.</p>
+          <a href={showrankRelease.modUrl} target="_blank" rel="noreferrer">
             Download {showrankRelease.fileName} from GameBanana
           </a>
-        </section>
+        </UploadCard>
       </div>
 
       <section className="result-panel" aria-live="polite">
         <h2>Result</h2>
         <div className="result-grid">
           <span>Top Bar SHA-256</span><strong>{topbar.sha256 || "Not validated"}</strong>
-          <span>Missing-enemy alerts</span><strong>{missingAlerts ? "On (alert edition)" : "Off (no-missing edition)"}</strong>
+          <span>ShowRank SHA-256</span><strong>{showrank.sha256 || "Not validated"}</strong>
+          <span>ShowRank edition</span><strong>{SHOWRANK_EDITION_LABELS[showrank.editionId || result.editionId] || SHOWRANK_EDITION_LABELS[editionId]}</strong>
           <span>Output filename</span><strong>{result.filename || (missingAlerts ? "topbar_rank_barebones_dir.vpk" : "topbar_rank_barebones_no_missing_dir.vpk")}</strong>
           <span>Generated files</span><strong>{result.fileCount || "Not built"}</strong>
         </div>

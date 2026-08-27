@@ -310,14 +310,15 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
           slot={showrank}
           onFile={handleShowrankFile}
         >
-          <label htmlFor="missing-alerts">Missing-enemy alerts</label>
-          <input
-            id="missing-alerts"
-            type="checkbox"
-            checked={missingAlerts}
-            disabled={isBusy}
-            onChange={handleMissingAlertsChange}
-          />
+          <label className="edition-toggle" htmlFor="missing-alerts">Missing-enemy alerts
+            <input
+              id="missing-alerts"
+              type="checkbox"
+              checked={missingAlerts}
+              disabled={isBusy}
+              onChange={handleMissingAlertsChange}
+            />
+          </label>
           <p className="helper">On requires the alert archive. Off requires the no-missing archive. Changing editions clears the selected ShowRank file.</p>
           <a href={showrankRelease.modUrl} target="_blank" rel="noreferrer">
             Download {showrankRelease.fileName} from GameBanana

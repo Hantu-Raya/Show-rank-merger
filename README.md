@@ -1,11 +1,11 @@
 # Topbar Rank VPK Merger
 
-Static Astro + React app for building a current Topbar Rank Barebones VPK from exact Top Bar Plus v40d and ShowRank 8/26 archives. Files stay in the browser; no server receives them.
+Static Astro + React app for building a current Topbar Rank Barebones VPK from exact Top Bar Plus v40d and ShowRank 8/27 archives. Files stay in the browser; no server receives them.
 
 ## What it does
 
 - Validates the Top Bar Plus v40d archive by exact outer size/SHA-256, embedded VPK SHA-256, and required VPK paths.
-- Requires and validates the selected ShowRank 8/26 archive by the same checks.
+- Requires and validates the selected ShowRank 8/27 archive by the same checks.
 - Offers two mutually exclusive editions: `alert` and `no_missing`.
 - Fetches the selected edition's current 23-resource source map and composes the viewed-profile identity policy, Profile Stats Community runtime, and stylesheet exactly once.
 - Uses the same composed rules for latest-source builds and bundled offline fallbacks, rejecting unresolved composition placeholders before Closure compilation.
@@ -14,8 +14,8 @@ Static Astro + React app for building a current Topbar Rank Barebones VPK from e
 ## Inputs and editions
 
 - Required input: `v40d_top_bar_plus.zip`. The filename is only a hint; archive and embedded identities must match.
-- `alert` requires `showrank_barebones_8_26.7z` from GameBanana file `1797773` and downloads `topbar_rank_barebones_dir.vpk`.
-- `no_missing` requires `showrank_barebones_no_missing_8_26.7z` from GameBanana file `1797774` and downloads `topbar_rank_barebones_no_missing_dir.vpk`.
+- `alert` requires `showrank_barebones_8_27.7z` from GameBanana file `1798716` and downloads `topbar_rank_barebones_dir.vpk`.
+- `no_missing` requires `showrank_barebones_no_missing_8_27.7z` from GameBanana file `1798715` and downloads `topbar_rank_barebones_no_missing_dir.vpk`.
 - Changing the edition clears the selected ShowRank archive. The edition toggle is locked while a build runs.
 
 `alert` means missing-enemy alerts during the first eight minutes, based on native health visibility. It does not mean missing rank data, missing API data, or a failed rank lookup. `no_missing` removes the missing-enemy runtime, XML, CSS, and clock-polling markers.

@@ -12,25 +12,25 @@ export const TOPBAR_SOURCE = {
 
 export const SHOWRANK_RELEASES = Object.freeze({
   alert: Object.freeze({
-    fileId: "1797773",
-    modUrl: "https://gamebanana.com/mods/download/681028#FileInfo_1797773",
-    downloadUrl: "https://gamebanana.com/dl/1797773",
-    fileName: "showrank_barebones_8_26.7z",
-    size: 39992,
-    md5: "044e61b0c845aa167684052a7bddb7ef",
-    sha256: "31a8510be417df0f60bf96f5bea9d4d59f9f5d71f69e05a9ea062507f6dfee34",
-    vpkSha256: "9e780bba50720aa7964feb6252911a990b30f570726efc2be41f0d39b7f157fb",
+    fileId: "1798716",
+    modUrl: "https://gamebanana.com/mods/download/681028#FileInfo_1798716",
+    downloadUrl: "https://gamebanana.com/dl/1798716",
+    fileName: "showrank_barebones_8_27.7z",
+    size: 41279,
+    md5: "300be4886f5e860f063b18a0a6faef7f",
+    sha256: "0ccfd299e4018e6fe335bce6574de673671eee1415d2c9a866ca153cc24a8ff6",
+    vpkSha256: "5bfdcac7a838177913be40325f3931df8d61caac0fa1671ebee0d02065cd21e7",
     archiveMember: "showrank_barebones_dir.vpk"
   }),
   no_missing: Object.freeze({
-    fileId: "1797774",
-    modUrl: "https://gamebanana.com/mods/download/681028#FileInfo_1797774",
-    downloadUrl: "https://gamebanana.com/dl/1797774",
-    fileName: "showrank_barebones_no_missing_8_26.7z",
-    size: 36243,
-    md5: "eb6ba140786dd70ca6b4497cd68cb4fa",
-    sha256: "2e175dc6ea255f9dd90d19e6369a94d1a44e6f4f32e6ebda9b4335961404cb46",
-    vpkSha256: "94daeaa5d96aee92c040e478cb00e4e957871f1b9fd0cb2064cba45ecce59d56",
+    fileId: "1798715",
+    modUrl: "https://gamebanana.com/mods/download/681028#FileInfo_1798715",
+    downloadUrl: "https://gamebanana.com/dl/1798715",
+    fileName: "showrank_barebones_no_missing_8_27.7z",
+    size: 37501,
+    md5: "afb4e108546fa556760ab60278baf929",
+    sha256: "f0b2fc772d790c5f258e105eb3465893942f9f1a653158c88ad951866774fe21",
+    vpkSha256: "b92db2be0f9437ae5e62055cc9f5d734fa850d467f4931973860d3dd24d630d6",
     archiveMember: "showrank_barebones_no_missing_dir.vpk"
   })
 });

@@ -2,10 +2,10 @@
 
 ## Product contract
 
-This static Astro + React app builds one mutually exclusive Topbar Rank Barebones edition from two required inputs: the exact Top Bar Plus v40d archive and the exact selected ShowRank 8/26 archive.
+This static Astro + React app builds one mutually exclusive Topbar Rank Barebones edition from two required inputs: the exact Top Bar Plus v40d archive and the exact selected ShowRank 8/27 archive.
 
-- `alert` requires `showrank_barebones_8_26.7z`, emits `topbar_rank_barebones_dir.vpk`, and shows missing-enemy alerts during the first eight minutes when native health is hidden.
-- `no_missing` requires `showrank_barebones_no_missing_8_26.7z`, emits `topbar_rank_barebones_no_missing_dir.vpk`, and contains no missing-enemy runtime, XML, CSS, or clock-polling markers.
+- `alert` requires `showrank_barebones_8_27.7z`, emits `topbar_rank_barebones_dir.vpk`, and shows missing-enemy alerts during the first eight minutes when native health is hidden.
+- `no_missing` requires `showrank_barebones_no_missing_8_27.7z`, emits `topbar_rank_barebones_no_missing_dir.vpk`, and contains no missing-enemy runtime, XML, CSS, or clock-polling markers.
 - Missing-enemy alerts never mean missing rank data or missing API data.
 - Each edition contains exactly the 23 paths in `src/topbarRankSourceManifest.js`.
 
@@ -25,7 +25,7 @@ This static Astro + React app builds one mutually exclusive Topbar Rank Barebone
 - `src/payload/topbar_rank/<edition>/` — checked-in composed fallback source; keep both editions complete.
 - `src/payload/topbarRankSources.generated.js` — generated map consumed by payload building.
 - `scripts/sync-topbar-rank-payload.mjs` — refreshes both editions, removes stale flat material, composes sources, and regenerates the map.
-- `src/gamebananaSources.js` - canonical Top Bar Plus v40d and ShowRank 8/26 metadata plus required VPK paths.
+- `src/gamebananaSources.js` - canonical Top Bar Plus v40d and ShowRank 8/27 metadata plus required VPK paths.
 - `src/sourceValidation.js` - exact archive and embedded VPK identity checks for both required uploads.
 - `test/*.test.js` — focused contract tests.
 

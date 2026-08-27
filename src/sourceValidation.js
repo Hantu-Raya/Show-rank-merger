@@ -80,7 +80,7 @@ export async function validateShowrankArchive(file, bytesInput, expectedEditionI
   const sha256 = await sha256Hex(bytes);
   const editionId = detectShowrankEditionBySha256(sha256);
   if (!editionId) {
-    throw new Error(`ShowRank archive SHA-256 is not a supported 8/26 edition: ${sha256}`);
+    throw new Error(`ShowRank archive SHA-256 is not a supported 8/27 edition: ${sha256}`);
   }
   if (expectedEditionId && editionId !== expectedEditionId) {
     throw new Error(`ShowRank archive edition mismatch: expected ${expectedEditionId}, got ${editionId}`);

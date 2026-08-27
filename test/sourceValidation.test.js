@@ -5,7 +5,7 @@ import * as sources from "../src/gamebananaSources.js";
 import { SHOWRANK_RELEASES, SHOWRANK_REQUIRED_VPK_PATHS, TOPBAR_REQUIRED_VPK_PATHS, TOPBAR_SOURCE } from "../src/gamebananaSources.js";
 import { detectShowrankEditionBySha256, validateRequiredPaths, validateShowrankArchive, validateTopbarArchive } from "../src/sourceValidation.js";
 
-test("runtime source metadata tracks Top Bar Plus and the live ShowRank 8/26 files", () => {
+test("runtime source metadata tracks Top Bar Plus and the live ShowRank 8/27 files", () => {
   assert.equal(TOPBAR_SOURCE.id, "topbar_plus_v40d");
   assert.equal(TOPBAR_SOURCE.expectedFileName, "v40d_top_bar_plus.zip");
   assert.equal(TOPBAR_SOURCE.expectedVpkSha256, "986d28a49f06919d84a090e9921929075fb2b9c5a445df58de13b1e06921d10d");
@@ -20,8 +20,8 @@ test("runtime source metadata tracks Top Bar Plus and the live ShowRank 8/26 fil
       release.vpkSha256
     ]),
     [
-      ["1797773", "showrank_barebones_8_26.7z", 39992, "044e61b0c845aa167684052a7bddb7ef", "https://gamebanana.com/mods/download/681028#FileInfo_1797773", "9e780bba50720aa7964feb6252911a990b30f570726efc2be41f0d39b7f157fb"],
-      ["1797774", "showrank_barebones_no_missing_8_26.7z", 36243, "eb6ba140786dd70ca6b4497cd68cb4fa", "https://gamebanana.com/mods/download/681028#FileInfo_1797774", "94daeaa5d96aee92c040e478cb00e4e957871f1b9fd0cb2064cba45ecce59d56"]
+      ["1798716", "showrank_barebones_8_27.7z", 41279, "300be4886f5e860f063b18a0a6faef7f", "https://gamebanana.com/mods/download/681028#FileInfo_1798716", "5bfdcac7a838177913be40325f3931df8d61caac0fa1671ebee0d02065cd21e7"],
+      ["1798715", "showrank_barebones_no_missing_8_27.7z", 37501, "afb4e108546fa556760ab60278baf929", "https://gamebanana.com/mods/download/681028#FileInfo_1798715", "b92db2be0f9437ae5e62055cc9f5d734fa850d467f4931973860d3dd24d630d6"]
     ]
   );
   assert.equal(SHOWRANK_REQUIRED_VPK_PATHS.length, 9);
@@ -37,7 +37,7 @@ test("ShowRank archive SHA-256 selects the required edition", () => {
 test("validateShowrankArchive rejects unsupported archives before extraction", async () => {
   await assert.rejects(
     () => validateShowrankArchive({ name: "unknown.7z" }, new Uint8Array(16), "alert"),
-    /not a supported 8\/26 edition/
+    /not a supported 8\/27 edition/
   );
 });
 

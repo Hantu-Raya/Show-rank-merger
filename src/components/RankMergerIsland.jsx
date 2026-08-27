@@ -275,7 +275,7 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
               </a>
             ) : null}
           </div>
-          <p>Build a current Topbar Rank Barebones VPK from the exact Top Bar Plus V40D archive and one exact 8/26 ShowRank Barebones archive. Files stay on your machine.</p>
+          <p>Build a current Topbar Rank Barebones VPK from the exact Top Bar Plus V40D archive and one exact 8/27 ShowRank Barebones archive. Files stay on your machine.</p>
         </div>
         <div className="header-actions" aria-label="Project support actions">
           <a className="support-button" href="https://ko-fi.com/hantuaraya" target="_blank" rel="noreferrer" aria-label="Donate on Ko-fi">

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { buildPayloadWithFallback } from "../src/buildMergedRankVpk.js";
 import { extractPanoramaLayoutSource, extractPanoramaStyleSource, extractTextResource } from "../src/source2ResourceReader.js";
 import { normalizeVpkPath } from "../src/rankMerge.js";
 import { TOPBAR_RANK_SOURCE_TEXTS_BY_EDITION } from "../src/payload/topbarRankSources.generated.js";
@@ -8,7 +9,13 @@ import {
   buildTopbarRankPayload,
   TOPBAR_RANK_REQUIRED_OUTPUT_PATHS
 } from "../src/topbarRankPayload.js";
-import { TOPBAR_RANK_DEFAULT_EDITION, TOPBAR_RANK_EDITIONS, TOPBAR_RANK_SOURCE_PATHS } from "../src/topbarRankSourceManifest.js";
+import { fetchLatestTopbarRankSourceTexts } from "../src/topbarRankSourceFetch.js";
+import {
+  TOPBAR_RANK_COMPOSITION_SOURCE_PATHS,
+  TOPBAR_RANK_DEFAULT_EDITION,
+  TOPBAR_RANK_EDITIONS,
+  TOPBAR_RANK_SOURCE_PATHS
+} from "../src/topbarRankSourceManifest.js";
 
 function fileByPath(payload, path) {
   const normalized = normalizeVpkPath(path);
@@ -183,5 +190,44 @@ test("bundled source maps contain no unresolved composition seams", () => {
     for (const text of Object.values(sourceTexts)) {
       assert.doesNotMatch(text, /PROFILE_STATS_COMMUNITY_RUNTIME|PROFILE_STATS_COMMUNITY_STYLES|VIEWED_PROFILE_IDENTITY_POLICY/);
     }
+  }
+});
+
+test("fetched source that composes but fails payload validation falls back for both editions; explicit source fails", async () => {
+  const identityPlaceholder = "    /* VIEWED_PROFILE_IDENTITY_POLICY: scripts/viewed-profile-identity-policy.js */";
+  const sourceByPath = {
+    "panorama/scripts/showrank_barebones.js": `(function () {\n${identityPlaceholder}\nfunction install() {\n        /* PROFILE_STATS_COMMUNITY_RUNTIME: profile_stats_community/panorama/scripts/profile_stats_community.js */\n}\n}());`,
+    "panorama/styles/showrank_barebones_topbar.css": "/* PROFILE_STATS_COMMUNITY_STYLES: profile_stats_community/panorama/styles/profile_stats_community.css */",
+    [TOPBAR_RANK_COMPOSITION_SOURCE_PATHS[0]]: `(function () {\n${identityPlaceholder}\n}());`,
+    [TOPBAR_RANK_COMPOSITION_SOURCE_PATHS[1]]: ".profile-stats {}",
+    [TOPBAR_RANK_COMPOSITION_SOURCE_PATHS[2]]: "    var viewedProfileIdentityPolicy = {};"
+  };
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const path = [...TOPBAR_RANK_SOURCE_PATHS, ...TOPBAR_RANK_COMPOSITION_SOURCE_PATHS]
+      .find((candidate) => new URL(url).pathname.endsWith(`/${candidate}`));
+    assert.ok(path, `Unexpected source URL: ${url}`);
+    return new Response(sourceByPath[path] || `invalid upstream source: ${path}`);
+  };
+
+  try {
+    for (const editionId of TOPBAR_RANK_EDITIONS) {
+      const invalidSourceTexts = await fetchLatestTopbarRankSourceTexts({ editionId });
+      assert.doesNotMatch(invalidSourceTexts["panorama/scripts/showrank_barebones.js"], /PROFILE_STATS_COMMUNITY_RUNTIME/);
+      await assert.rejects(
+        () => buildTopbarRankPayload({ editionId, sourceTexts: invalidSourceTexts }),
+        /missing required token/
+      );
+      const { payload, sourceOrigin } = await buildPayloadWithFallback({ editionId });
+      assert.equal(sourceOrigin, "bundled");
+      assert.equal(payload.editionId, editionId);
+      assert.deepEqual(payload.sourceTexts, TOPBAR_RANK_SOURCE_TEXTS_BY_EDITION[editionId]);
+      await assert.rejects(
+        () => buildPayloadWithFallback({ editionId, payloadSourceTexts: invalidSourceTexts }),
+        /missing required token/
+      );
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
   }
 });

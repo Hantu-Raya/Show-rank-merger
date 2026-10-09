@@ -20,6 +20,29 @@ function outputFilenameForMergedVpk(editionId) {
   throw new Error(`Unsupported Topbar Rank edition: ${editionId}`);
 }
 
+export async function buildPayloadWithFallback({
+  editionId,
+  payloadSourceTexts = null,
+  fetchLatestPayloadSource = true
+}) {
+  if (payloadSourceTexts) {
+    return {
+      payload: await buildTopbarRankPayload({ editionId, sourceTexts: payloadSourceTexts }),
+      sourceOrigin: "provided"
+    };
+  }
+  if (fetchLatestPayloadSource) {
+    try {
+      const sourceTexts = await fetchLatestTopbarRankSourceTexts({ editionId });
+      const payload = await buildTopbarRankPayload({ editionId, sourceTexts });
+      return { payload, sourceOrigin: "latest" };
+    } catch {
+      // Network or incompatible upstream source falls back to the checked-in edition.
+    }
+  }
+  return { payload: await buildTopbarRankPayload({ editionId }), sourceOrigin: "bundled" };
+}
+
 export async function buildMergedRankVpk({
   baseVpkBytes = null,
   topbarArchiveBytes,
@@ -38,19 +61,10 @@ export async function buildMergedRankVpk({
     editionId
   );
   const baseParsed = baseVpkBytes ? parseVpk(toBytes(baseVpkBytes)) : { files: [] };
-  let sourceTexts = payloadSourceTexts;
-  let sourceOrigin = sourceTexts ? "provided" : "bundled";
-  if (!sourceTexts && fetchLatestPayloadSource) {
-    try {
-      sourceTexts = await fetchLatestTopbarRankSourceTexts({ editionId });
-      sourceOrigin = "latest";
-    } catch {
-      // Network or incompatible upstream source falls back to the checked-in edition.
-    }
-  }
-  const payload = await buildTopbarRankPayload({
+  const { payload, sourceOrigin } = await buildPayloadWithFallback({
     editionId,
-    ...(sourceTexts ? { sourceTexts } : {})
+    payloadSourceTexts,
+    fetchLatestPayloadSource
   });
   const { files: outputFiles, overwrittenPaths } = mergeFilesWithPriority(baseParsed.files, payload.files);
   const bytes = writeVpk(outputFiles);

@@ -18,6 +18,8 @@ function formatSize(bytes) {
   return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+const asset = (path) => `${String(import.meta.env.BASE_URL || "/").replace(/\/?$/, "/")}${path}`;
+
 function CheckIcon() {
   return (
     <svg className="icon" viewBox="0 0 16 16" aria-hidden="true">
@@ -26,7 +28,7 @@ function CheckIcon() {
   );
 }
 
-function FileStep({ number, title, inputId, accept, slot, disabled, onFile, children }) {
+function FileStep({ number, tone, title, inputId, accept, slot, disabled, onFile, children }) {
   const [isDragging, setIsDragging] = useState(false);
   const statusId = `${inputId}-status`;
   const pick = (files) => {
@@ -35,7 +37,7 @@ function FileStep({ number, title, inputId, accept, slot, disabled, onFile, chil
 
   return (
     <li
-      className={`step${isDragging ? " is-dragging" : ""}`}
+      className={`step tone-${tone}${isDragging ? " is-dragging" : ""}`}
       data-state={slot.state}
       onDragOver={(event) => event.preventDefault()}
       onDragEnter={(event) => { event.preventDefault(); setIsDragging(true); }}
@@ -47,9 +49,11 @@ function FileStep({ number, title, inputId, accept, slot, disabled, onFile, chil
         pick(event.dataTransfer.files);
       }}
     >
-      <span className="step-number" aria-hidden="true">{number}</span>
+      <div className="step-head">
+        <span className="step-number" aria-hidden="true">{`0${number}`}</span>
+        <h3 id={`${inputId}-title`}>{title}</h3>
+      </div>
       <div className="step-body">
-        <h2 id={`${inputId}-title`}>{title}</h2>
         <div className="step-help">{children}</div>
         <div className="file-row">
           <label id={`${inputId}-label`} className={`file-button${disabled ? " is-disabled" : ""}`} htmlFor={inputId}>
@@ -160,58 +164,91 @@ export default function RankMergerIsland({ gitCommitInfo = null }) {
 
   return (
     <div className="page" onDragOver={(event) => event.preventDefault()} onDrop={handlePageDrop}>
-      <header className="intro">
-        <p className="eyebrow">Deadlock mod tool</p>
-        <h1>ShowRank + Top Bar Plus</h1>
-        <p className="lede">
-          ShowRank and Top Bar Plus replace the same two top bar layouts, so with both installed one of them loses its
-          top bar changes. This page combines ShowRank v1.0.0 and Top Bar Plus v5 into one VPK that keeps both. Your files
-          are processed in your browser and are not uploaded.
-        </p>
+      <div className="backdrop" aria-hidden="true" style={{ backgroundImage: `url(${asset("img/backdrop.webp")})` }} />
+
+      <header className="hero">
+        <div className="hero-copy">
+          <div className="brand">
+            <img className="brand-badge" src={asset("img/badge.webp")} alt="" width="72" height="68" />
+            <p className="eyebrow">Deadlock mod merger</p>
+          </div>
+          <h1>
+            <span className="h1-showrank">Show<em>Rank</em></span>
+            <span className="h1-plus"><span aria-hidden="true">+</span><span className="visually-hidden"> and </span></span>
+            <span className="h1-topbar">Top Bar Plus</span>
+          </h1>
+          <p className="lede">
+            Both mods replace the same two top bar layouts, so with both installed one of them loses its top bar. Merge ShowRank v1.0.0
+            and Top Bar Plus v5 into one VPK that keeps both. Your files stay in your browser.
+          </p>
+          <ul className="chips" aria-label="What you keep">
+            <li className="chip chip-showrank">Top bar ranks</li>
+            <li className="chip chip-showrank">Escape menu</li>
+            <li className="chip chip-showrank">Profiles</li>
+            <li className="chip chip-showrank">Rank history</li>
+            <li className="chip chip-topbar">Rejuv timer</li>
+            <li className="chip chip-topbar">Bridge timer</li>
+            <li className="chip chip-topbar">Recent purchases</li>
+          </ul>
+        </div>
+        <figure className="hero-shot">
+          <span className="shot-label">Escape menu</span>
+          <img src={asset("img/escape.webp")} width="390" height="795" alt="ShowRank's Escape menu Players tab: each player's rank badge and party stacks." />
+        </figure>
       </header>
 
-      <ol className="steps">
-        <FileStep number="1" title="Top Bar Plus v5" inputId="topbar-file" accept=".zip,application/zip" slot={topbar} disabled={isBuilding} onFile={handleTopbar}>
-          <p>
-            Download <a href={TOPBAR_SOURCE.modUrl} target="_blank" rel="noreferrer"><code>{TOPBAR_SOURCE.fileName}</code></a> from
-            GameBanana and add it here unchanged.
-          </p>
-        </FileStep>
+      <figure className="strip">
+        <span className="shot-label">Top bar</span>
+        <img src={asset("img/topbar.webp")} width="1265" height="150" alt="ShowRank rank badges on every hero portrait in the top bar." />
+      </figure>
 
-        <FileStep number="2" title="ShowRank v1.0.0" inputId="showrank-file" accept=".7z,application/x-7z-compressed" slot={showrank} disabled={isBuilding} onFile={handleShowrank}>
-          <p>Add one of the two downloads. The result matches the one you choose.</p>
-          <ul className="choices">
-            <li>
-              <a href={SHOWRANK_RELEASES.alert.modUrl} target="_blank" rel="noreferrer"><code>{SHOWRANK_RELEASES.alert.fileName}</code></a>
-              <span>Normal: MISSING tags and the ENEMY MISSING alert for enemies who disappear early in a match.</span>
-            </li>
-            <li>
-              <a href={SHOWRANK_RELEASES.no_missing.modUrl} target="_blank" rel="noreferrer"><code>{SHOWRANK_RELEASES.no_missing.fileName}</code></a>
-              <span>No Missing: everything else, without those alerts.</span>
-            </li>
-          </ul>
-        </FileStep>
+      <section className="merge" aria-labelledby="merge-title">
+        <h2 id="merge-title" className="section-title">Merge in three steps</h2>
+        <ol className="steps">
+          <FileStep number="1" tone="topbar" title="Top Bar Plus v5" inputId="topbar-file" accept=".zip,application/zip" slot={topbar} disabled={isBuilding} onFile={handleTopbar}>
+            <p>
+              Download <a href={TOPBAR_SOURCE.modUrl} target="_blank" rel="noreferrer"><code>{TOPBAR_SOURCE.fileName}</code></a> from
+              GameBanana and add it unchanged.
+            </p>
+          </FileStep>
 
-        <li className="step" data-state={result.bytes ? "ok" : result.error ? "error" : "empty"}>
-          <span className="step-number" aria-hidden="true">3</span>
-          <div className="step-body">
-            <h2>Build and install</h2>
-            <div className="file-row">
-              <button className="primary" type="button" disabled={!ready || isBuilding} aria-describedby="build-status" onClick={handleBuild}>
-                {isBuilding ? "Building…" : result.bytes ? "Download again" : "Build VPK"}
-              </button>
+          <FileStep number="2" tone="showrank" title="ShowRank v1.0.0" inputId="showrank-file" accept=".7z,application/x-7z-compressed" slot={showrank} disabled={isBuilding} onFile={handleShowrank}>
+            <p>Add one of the two downloads. Your result matches it.</p>
+            <ul className="choices">
+              <li>
+                <a href={SHOWRANK_RELEASES.alert.modUrl} target="_blank" rel="noreferrer"><code>{SHOWRANK_RELEASES.alert.fileName}</code></a>
+                <span>Normal, with MISSING tags and the ENEMY MISSING alert.</span>
+              </li>
+              <li>
+                <a href={SHOWRANK_RELEASES.no_missing.modUrl} target="_blank" rel="noreferrer"><code>{SHOWRANK_RELEASES.no_missing.fileName}</code></a>
+                <span>No Missing, without those alerts.</span>
+              </li>
+            </ul>
+          </FileStep>
+
+          <li className="step tone-build" data-state={result.bytes ? "ok" : result.error ? "error" : "empty"}>
+            <div className="step-head">
+              <span className="step-number" aria-hidden="true">03</span>
+              <h3>Build and install</h3>
             </div>
-            <p id="build-status" className={`status ${result.error ? "status-error" : result.bytes ? "status-ok" : ""}`} role="status" aria-live="polite">
-              {result.bytes ? <CheckIcon /> : null}
-              {buildNote}
-            </p>
-            <p className="step-help">
-              Remove the separate ShowRank and Top Bar Plus VPKs from <code>Deadlock\game\citadel\addons</code>, then put
-              the new file there with a free pak name, for example <code>pak89_dir.vpk</code>.
-            </p>
-          </div>
-        </li>
-      </ol>
+            <div className="step-body">
+              <div className="file-row">
+                <button className="primary" type="button" disabled={!ready || isBuilding} aria-describedby="build-status" onClick={handleBuild}>
+                  {isBuilding ? "Building…" : result.bytes ? "Download again" : "Build VPK"}
+                </button>
+              </div>
+              <p id="build-status" className={`status ${result.error ? "status-error" : result.bytes ? "status-ok" : ""}`} role="status" aria-live="polite">
+                {result.bytes ? <CheckIcon /> : null}
+                {buildNote}
+              </p>
+              <p className="step-help">
+                Remove the separate ShowRank and Top Bar Plus VPKs from <code>Deadlock\game\citadel\addons</code>, then put
+                the new file there with a free pak name, for example <code>pak89_dir.vpk</code>.
+              </p>
+            </div>
+          </li>
+        </ol>
+      </section>
 
       <details className="details">
         <summary>File details</summary>

@@ -5,16 +5,11 @@
     "test/**/*.js",
     "scripts/*.mjs"
   ],
-  "ignorePatterns": [
-    "src/payload/topbar_rank/**"
-  ],
   "ignoreDependencies": [
     "@astrojs/react",
     "astro"
   ],
-  "ignoreExports": [
-    { "file": "src/source2ResourceReader.js", "exports": ["*"] }
-  ],
+  "ignoreExports": [],
   "duplicates": {
     "enabled": false
   },
@@ -24,9 +19,7 @@
     "maxCrap": 1000000,
     "ignore": [
       "src/components/RankMergerIsland.jsx",
-      "src/topbarRankPayload.js",
-      "src/vpkReader.js",
-      "src/payload/topbar_rank/**"
+      "src/vpkReader.js"
     ]
   },
   "audit": {

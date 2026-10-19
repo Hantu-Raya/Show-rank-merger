@@ -1,64 +1,57 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import * as sources from "../src/gamebananaSources.js";
-import { SHOWRANK_RELEASES, SHOWRANK_REQUIRED_VPK_PATHS, TOPBAR_REQUIRED_VPK_PATHS, TOPBAR_SOURCE } from "../src/gamebananaSources.js";
-import { detectShowrankEditionBySha256, validateRequiredPaths, validateShowrankArchive, validateTopbarArchive } from "../src/sourceValidation.js";
+import { SHOWRANK_RELEASES, SHOWRANK_VPK_PATHS, TOPBAR_SOURCE, TOPBAR_VPK_PATHS } from "../src/gamebananaSources.js";
+import { detectShowrankEditionBySha256, findPathProblems, validateShowrankArchive, validateTopbarArchive } from "../src/sourceValidation.js";
 
-test("runtime source metadata tracks Top Bar Plus and the live ShowRank 8/27 files", () => {
-  assert.equal(TOPBAR_SOURCE.id, "topbar_plus_v40d");
-  assert.equal(TOPBAR_SOURCE.expectedFileName, "v40d_top_bar_plus.zip");
-  assert.equal(TOPBAR_SOURCE.expectedVpkSha256, "986d28a49f06919d84a090e9921929075fb2b9c5a445df58de13b1e06921d10d");
-  assert.deepEqual(Object.keys(SHOWRANK_RELEASES), ["alert", "no_missing"]);
+test("Top Bar Plus is pinned to the GameBanana v5 file", () => {
   assert.deepEqual(
-    Object.values(SHOWRANK_RELEASES).map((release) => [
-      release.fileId,
-      release.fileName,
-      release.size,
-      release.md5,
-      release.modUrl,
-      release.vpkSha256
-    ]),
-    [
-      ["1798716", "showrank_barebones_8_27.7z", 41279, "300be4886f5e860f063b18a0a6faef7f", "https://gamebanana.com/mods/download/681028#FileInfo_1798716", "5bfdcac7a838177913be40325f3931df8d61caac0fa1671ebee0d02065cd21e7"],
-      ["1798715", "showrank_barebones_no_missing_8_27.7z", 37501, "afb4e108546fa556760ab60278baf929", "https://gamebanana.com/mods/download/681028#FileInfo_1798715", "b92db2be0f9437ae5e62055cc9f5d734fa850d467f4931973860d3dd24d630d6"]
-    ]
+    [TOPBAR_SOURCE.fileId, TOPBAR_SOURCE.fileName, TOPBAR_SOURCE.size, TOPBAR_SOURCE.md5, TOPBAR_SOURCE.sha256, TOPBAR_SOURCE.vpkSha256, TOPBAR_SOURCE.archiveMember],
+    ["1834013", "v5_top_bar_plus.zip", 170896, "06d9aabeee4ca8a5f2f53917671916c7", "9aeb1d73474640a0ef476ec82152dfc1622c94b842396d8c660ba40c539885f8", "5ee2c41f9ec1b1664d8858e84c0506c445d25a7bc7d1932b75cef2cf5a05ae67", "pak01_dir.vpk"]
   );
-  assert.equal(SHOWRANK_REQUIRED_VPK_PATHS.length, 9);
-  assert.deepEqual(Object.keys(sources).sort(), ["SHOWRANK_RELEASES", "SHOWRANK_REQUIRED_VPK_PATHS", "TOPBAR_REQUIRED_VPK_PATHS", "TOPBAR_SOURCE"]);
+  assert.equal(TOPBAR_VPK_PATHS.length, 14);
 });
 
-test("ShowRank archive SHA-256 selects the required edition", () => {
+test("ShowRank is pinned to the GameBanana v1.0.0 files", () => {
+  assert.deepEqual(
+    Object.entries(SHOWRANK_RELEASES).map(([editionId, release]) => [editionId, release.fileId, release.fileName, release.size, release.md5, release.sha256, release.vpkSha256, release.archiveMember]),
+    [
+      ["alert", "1855939", "showrank_barebones_v100.7z", 50270, "5c5df5c10348d760c45ac6c384d7640f", "3eb4c2edb35a212a0039fb67a72d805fa2da7bfb3ed7416f0186ccdc147a9912", "8cd270b48e76679371d15ad31a9f93219dc5b49e19a7574e419ae78e79f000dd", "showrank_barebones_dir.vpk"],
+      ["no_missing", "1855938", "showrank_barebones_no_missing_v100.7z", 46429, "cded4425541980f98c5b68eacbdde4f0", "be404215d870c8b956d5f47b666e0898a626f0ae4de728b69f7f42afce8cb0f9", "46f3e9b17215f8b94beae70b5035f8dbbea5fe6d283fb4d976c8db4c3b444026", "showrank_barebones_no_missing_dir.vpk"]
+    ]
+  );
+  assert.equal(SHOWRANK_VPK_PATHS.length, 10);
+});
+
+test("the ShowRank archive hash decides the edition", () => {
   assert.equal(detectShowrankEditionBySha256(SHOWRANK_RELEASES.alert.sha256), "alert");
   assert.equal(detectShowrankEditionBySha256(SHOWRANK_RELEASES.no_missing.sha256), "no_missing");
   assert.equal(detectShowrankEditionBySha256("0".repeat(64)), "");
 });
 
-test("validateShowrankArchive rejects unsupported archives before extraction", async () => {
+test("an unknown ShowRank archive is rejected before extraction with the expected file names", async () => {
   await assert.rejects(
-    () => validateShowrankArchive({ name: "unknown.7z" }, new Uint8Array(16), "alert"),
-    /not a supported 8\/27 edition/
+    () => validateShowrankArchive({ name: "showrank_barebones_10_11.7z" }, new Uint8Array(16)),
+    /not ShowRank v1\.0\.0.*showrank_barebones_v100\.7z.*showrank_barebones_no_missing_v100\.7z/
   );
 });
 
-test("validateRequiredPaths reports missing topbar paths", () => {
-  const files = TOPBAR_REQUIRED_VPK_PATHS.slice(1).map((path) => ({ path, bytes: new Uint8Array() }));
-  const result = validateRequiredPaths(files, TOPBAR_REQUIRED_VPK_PATHS);
-  assert.equal(result.ok, false);
-  assert.deepEqual(result.missing, [TOPBAR_REQUIRED_VPK_PATHS[0]]);
-});
-
-test("validateRequiredPaths accepts normalized topbar paths", () => {
-  const files = TOPBAR_REQUIRED_VPK_PATHS.map((path) => ({ path: path.toUpperCase().replaceAll("/", "\\"), bytes: new Uint8Array() }));
-  assert.deepEqual(validateRequiredPaths(files, TOPBAR_REQUIRED_VPK_PATHS), { ok: true, missing: [] });
-});
-
-test("validateTopbarArchive requires the exact outer archive identity before embedded VPK checks", async () => {
+test("a wrong Top Bar Plus archive is rejected before extraction with the expected file name", async () => {
   await assert.rejects(
-    () => validateTopbarArchive(
-      { name: TOPBAR_SOURCE.expectedFileName },
-      new Uint8Array(TOPBAR_SOURCE.expectedSize)
-    ),
-    /Top Bar Plus archive SHA-256 mismatch/
+    () => validateTopbarArchive({ name: "v40d_top_bar_plus.zip" }, new Uint8Array(TOPBAR_SOURCE.size)),
+    /not Top Bar Plus v5.*v5_top_bar_plus\.zip/
+  );
+});
+
+test("findPathProblems reports missing and unexpected paths after normalizing", () => {
+  const files = [...TOPBAR_VPK_PATHS.slice(1), "panorama/scripts/extra.vjs_c"]
+    .map((path) => ({ path: path.toUpperCase().replaceAll("/", "\\"), bytes: new Uint8Array() }));
+  assert.deepEqual(findPathProblems(files, TOPBAR_VPK_PATHS), {
+    missing: [TOPBAR_VPK_PATHS[0]],
+    unexpected: ["panorama/scripts/extra.vjs_c"]
+  });
+  assert.deepEqual(
+    findPathProblems(TOPBAR_VPK_PATHS.map((path) => ({ path, bytes: new Uint8Array() })), TOPBAR_VPK_PATHS),
+    { missing: [], unexpected: [] }
   );
 });

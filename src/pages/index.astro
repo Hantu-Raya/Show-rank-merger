@@ -10,16 +10,14 @@ const gitCommitInfo = getGitCommitInfo();
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Topbar Rank VPK Merger</title>
+    <title>ShowRank + Top Bar Plus merger</title>
     <meta
       name="description"
-      content="Build the current Topbar Rank Barebones VPK from exact Top Bar Plus v40d and selected ShowRank 8/27 archives. Files stay on your machine."
+      content="Combine ShowRank v1.0.0 and Top Bar Plus v5 for Deadlock into one VPK. Runs in your browser; files are not uploaded."
     />
     <link rel="icon" href="data:," />
   </head>
   <body>
-    <main class="app-shell">
-      <RankMergerIsland gitCommitInfo={gitCommitInfo} client:load />
-    </main>
+    <RankMergerIsland gitCommitInfo={gitCommitInfo} client:load />
   </body>
 </html>

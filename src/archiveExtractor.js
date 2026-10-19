@@ -7,9 +7,11 @@ function archiveFsName(archiveName) {
 }
 
 function sevenZipOptions() {
-  if (typeof window === "undefined") return undefined;
+  const quiet = { print() {}, printErr() {} };
+  if (typeof window === "undefined") return quiet;
   const baseUrl = typeof import.meta.env?.BASE_URL === "string" ? import.meta.env.BASE_URL : "/";
   return {
+    ...quiet,
     locateFile(path) {
       return path.endsWith(".wasm") ? `${baseUrl.replace(/\/?$/, "/")}7zz.wasm` : path;
     }

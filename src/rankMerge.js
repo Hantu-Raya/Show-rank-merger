@@ -1,14 +1,4 @@
-function toBytes(bytes) {
-  if (bytes instanceof Uint8Array) return new Uint8Array(bytes);
-  return new Uint8Array(bytes);
-}
-
-function cloneFile(file) {
-  return {
-    path: String(file.path),
-    bytes: toBytes(file.bytes)
-  };
-}
+import { compilePanoramaLayoutResource } from "./source2ResourceWriter.js";
 
 export function normalizeVpkPath(path) {
   return String(path || "")
@@ -19,39 +9,39 @@ export function normalizeVpkPath(path) {
     .toLowerCase();
 }
 
-export function mergeFilesWithPriority(baseFiles, priorityFiles) {
+function indexByPath(files, label) {
+  const index = new Map();
+  for (const file of files || []) {
+    const path = normalizeVpkPath(file.path);
+    if (!path) continue;
+    if (index.has(path)) throw new Error(`${label} has a duplicate path: ${path}`);
+    index.set(path, new Uint8Array(file.bytes));
+  }
+  return index;
+}
+
+// Top Bar Plus and ShowRank resources are copied byte for byte. The two layouts both mods replace
+// must be exactly the shared paths, and they come from the bundled merged layouts instead.
+export function mergeReleaseFiles({ topbarFiles, showrankFiles, layouts }) {
+  const topbar = indexByPath(topbarFiles, "Top Bar Plus");
+  const showrank = indexByPath(showrankFiles, "ShowRank");
+  const layoutPaths = Object.keys(layouts).map(normalizeVpkPath);
+  const shared = [...showrank.keys()].filter((path) => topbar.has(path));
+
+  const unexpected = shared.filter((path) => !layoutPaths.includes(path));
+  if (unexpected.length > 0) throw new Error(`Both mods replace ${unexpected.join(", ")}; this pair is not supported.`);
+  const unshared = layoutPaths.filter((path) => !shared.includes(path));
+  if (unshared.length > 0) throw new Error(`Expected both mods to replace ${unshared.join(", ")}.`);
+
   const files = [];
-  const indexByPath = new Map();
-  const overwrittenPaths = [];
-
-  for (const file of baseFiles || []) {
-    const cloned = cloneFile(file);
-    const normalized = normalizeVpkPath(cloned.path);
-    if (!normalized) continue;
-    if (!indexByPath.has(normalized)) {
-      indexByPath.set(normalized, files.length);
-      files.push(cloned);
-    }
+  for (const [path, bytes] of topbar) {
+    if (!layoutPaths.includes(path)) files.push({ path, bytes });
   }
-
-  for (const file of priorityFiles || []) {
-    const cloned = cloneFile(file);
-    const normalized = normalizeVpkPath(cloned.path);
-    if (!normalized) continue;
-    const existingIndex = indexByPath.get(normalized);
-    if (existingIndex === undefined) {
-      indexByPath.set(normalized, files.length);
-      files.push(cloned);
-      continue;
-    }
-
-    overwrittenPaths.push({
-      path: normalized,
-      basePath: files[existingIndex].path,
-      priorityPath: cloned.path
-    });
-    files[existingIndex] = cloned;
+  for (const [path, bytes] of showrank) {
+    if (!layoutPaths.includes(path)) files.push({ path, bytes });
   }
-
-  return { files, overwrittenPaths };
+  for (const [path, source] of Object.entries(layouts)) {
+    files.push({ path: normalizeVpkPath(path), bytes: compilePanoramaLayoutResource(source) });
+  }
+  return { files, replacedPaths: layoutPaths };
 }

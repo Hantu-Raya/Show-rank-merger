@@ -5,16 +5,12 @@
 		<include src="s2r://panorama/styles/hud_common.vcss_c" />
 		<include src="s2r://panorama/styles/citadel_hud_top_bar.vcss_c" />
 		<include src="s2r://panorama/styles/unit_status_icons.vcss_c" />
-		<include src="s2r://panorama/styles/citadel_hud_game_announcements.vcss_c" />
-		<include src="s2r://panorama/styles/showrank_barebones_topbar.vcss_c" />
 	</styles>
 	<scripts>
-		<include src="s2r://panorama/scripts/rejuvnbufftimer.vjs_c" />
-		<include src="s2r://panorama/scripts/urntracker.vjs_c" />
+		<include src="s2r://panorama/scripts/topbar_rank_hud.vjs_c" />
 	</scripts>
-	<CitadelHudTopBar hittest="false">
-		<GlobalClassListener classes="gDetailView gScoreboardOpen" />
-		<Panel id="ShowRankBarebonesNotificationRoot" hittest="false" />
+	<CitadelHudTopBar hittest="false" onload="if ($.TopbarRankHudRootLoaded) $.TopbarRankHudRootLoaded(&apos;topbar_root_onload&apos;);">
+		<GlobalClassListener classes="gDetailView gShopOpen gScoreboardOpen gStreetBrawl gPVE" />
 		<Panel id="GradientBacker" />
 		<Panel class="GameClock">
 			<Label class="GameTime" id="GameTime" text="{s:game_clock}" />
@@ -35,14 +31,9 @@
 					<Label class="ScoreLabel" html="true" text="{s:team_networth}" />
 				</Panel>
 			</Panel>
-		</Panel>
-		<Panel id="ShowRankBarebonesTeamAverageLayer" class="ShowRankBarebonesTeamAverageLayer" hittest="false">
-			<Image id="ShowRankBarebonesAverageFriendlyImage" class="ShowRankBarebonesTeamAverageRankImage ShowRankBarebonesTeamAverageFriendlyImage ShowRankBarebonesTeamAverageRankVisible" scaling="stretch-to-fit-preserve-aspect" hittest="false" />
-			<Image id="ShowRankBarebonesAverageEnemyImage" class="ShowRankBarebonesTeamAverageRankImage ShowRankBarebonesTeamAverageEnemyImage ShowRankBarebonesTeamAverageRankVisible" scaling="stretch-to-fit-preserve-aspect" hittest="false" />
-		</Panel>
-		<Panel id="UrnTracker" class="UrnTracker">
-			<Label id="UrnTrackerLabel" class="UrnTrackerLabel" text="--" />
-			<Label id="UrnHUD" class="UrnHUD" text="0:00" />
+			<Panel id="TopbarRankAdvantage" class="TopbarRankAdvantage TopbarRankAdvantageNeutral" hittest="false">
+				<Label id="TopbarRankAdvantageLabel" class="TopbarRankAdvantageLabel" text="--" />
+			</Panel>
 		</Panel>
 		<Panel id="StretBrawlContainer">
 			<Label class="roundTitle" text="#Citadel_StreetBrawl_RoundTitle" />
@@ -64,27 +55,6 @@
 			<CitadelHudTopBarTeam id="TeamEnemy" team="3" />
 		</Panel>
 		<CitadelObjectivesMap id="ObjectivesMap" liveGame="true" />
-		<Panel id="BuffHUD" class="BuffP" hittest="false">
-			<Label id="BuffTimeHUD" text="0:00" />
-			<Image id="BuffImgHUD" src="s2r://panorama/images/hud/modifiers/icon_powerup.svg" />
-		</Panel>
-		<Panel id="RejuvHUD" hittest="false">
-			<Label id="RejuvTimeHUD" text="0:00" />
-			<Image id="RejuvImgHUD" src="s2r://panorama/images/hud/modifiers/icon_rejuvenator.svg" />
-			<Label id="RejuvNumHUD" text="1" />
-		</Panel>
-		<Panel id="RejuvBuff" hittest="false">
-			<Label id="RejuvTimeBuff" text="0:00" />
-		</Panel>
-		<Panel id="Buff" class="BuffP" hittest="false">
-			<Label id="BuffTime" text="0:00" />
-			<Image id="BuffImg" src="s2r://panorama/images/hud/modifiers/icon_powerup.svg" />
-		</Panel>
-		<Panel id="Rejuv" hittest="false">
-			<Label id="RejuvTime" text="0:00" />
-			<Image id="RejuvImg" src="s2r://panorama/images/hud/modifiers/icon_rejuvenator.svg" />
-			<Label id="RejuvNum" text="1" />
-		</Panel>
 		<Panel id="RejuvenatorCharges">
 			<Panel id="RejuvenatorFriendly">
 				<Panel class="rejuvIcon" />
@@ -97,6 +67,18 @@
 					<Image id="StatusEffectImage" />
 					<Panel class="statusEffectImage" />
 				</Panel>
+				<Label id="MidbossTimerLabel" class="midbossTimerLabel" text="{s:midboss_timer}" />
+				<Label id="RejuvenationTimer" class="RejuvenationTimer" text="-:--" />
+			</Panel>
+			<Panel id="BridgeTimer">
+				<Panel class="bridgTimer">
+					<Panel id="StatusEffectsBorder" />
+					<Panel id="StatusEffectCooldownOverlay" />
+					<Panel id="BridgeBackground" />
+					<Image id="StatusEffectImage" />
+					<Panel class="statusEffectImage" />
+				</Panel>
+				<Label id="BridgeTimerLabel" class="bridgeTimerLabel" text="..." />
 			</Panel>
 			<Panel id="RejuvenatorEnemy">
 				<Panel class="rejuvIcon" />

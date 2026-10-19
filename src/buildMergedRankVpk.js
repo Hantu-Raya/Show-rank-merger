@@ -1,85 +1,26 @@
-import { buildTopbarRankPayload } from "./topbarRankPayload.js";
-import { fetchLatestTopbarRankSourceTexts } from "./topbarRankSourceFetch.js";
-import { mergeFilesWithPriority } from "./rankMerge.js";
-import { parseVpk } from "./vpkReader.js";
-import { SHOWRANK_RELEASES, TOPBAR_SOURCE } from "./gamebananaSources.js";
+import { SHOWRANK_RELEASES } from "./gamebananaSources.js";
+import { MERGED_LAYOUTS } from "./mergedLayouts.js";
+import { mergeReleaseFiles } from "./rankMerge.js";
 import { validateShowrankArchive, validateTopbarArchive } from "./sourceValidation.js";
 import { writeVpk } from "./vpkWriter.js";
 
-function toBytes(input) {
-  if (input == null) return null;
-  if (input instanceof Uint8Array) return input;
-  if (input instanceof ArrayBuffer) return new Uint8Array(input);
-  if (ArrayBuffer.isView(input)) return new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
-  throw new Error("Expected bytes");
-}
-
-function outputFilenameForMergedVpk(editionId) {
-  if (editionId === "alert") return "topbar_rank_barebones_dir.vpk";
-  if (editionId === "no_missing") return "topbar_rank_barebones_no_missing_dir.vpk";
-  throw new Error(`Unsupported Topbar Rank edition: ${editionId}`);
-}
-
-export async function buildPayloadWithFallback({
-  editionId,
-  payloadSourceTexts = null,
-  fetchLatestPayloadSource = true
-}) {
-  if (payloadSourceTexts) {
-    return {
-      payload: await buildTopbarRankPayload({ editionId, sourceTexts: payloadSourceTexts }),
-      sourceOrigin: "provided"
-    };
-  }
-  if (fetchLatestPayloadSource) {
-    try {
-      const sourceTexts = await fetchLatestTopbarRankSourceTexts({ editionId });
-      const payload = await buildTopbarRankPayload({ editionId, sourceTexts });
-      return { payload, sourceOrigin: "latest" };
-    } catch {
-      // Network or incompatible upstream source falls back to the checked-in edition.
-    }
-  }
-  return { payload: await buildTopbarRankPayload({ editionId }), sourceOrigin: "bundled" };
-}
-
-export async function buildMergedRankVpk({
-  baseVpkBytes = null,
-  topbarArchiveBytes,
-  showrankArchiveBytes,
-  editionId = "alert",
-  payloadSourceTexts = null,
-  fetchLatestPayloadSource = true
-}) {
-  const topbarValidation = await validateTopbarArchive(
-    { name: TOPBAR_SOURCE.expectedFileName },
-    toBytes(topbarArchiveBytes)
-  );
-  const showrankValidation = await validateShowrankArchive(
-    { name: SHOWRANK_RELEASES[editionId]?.fileName || "showrank.7z" },
-    toBytes(showrankArchiveBytes),
-    editionId
-  );
-  const baseParsed = baseVpkBytes ? parseVpk(toBytes(baseVpkBytes)) : { files: [] };
-  const { payload, sourceOrigin } = await buildPayloadWithFallback({
-    editionId,
-    payloadSourceTexts,
-    fetchLatestPayloadSource
+// Validates both GameBanana archives, then packs one VPK: every Top Bar Plus and ShowRank resource
+// as released, plus the merged top bar layouts for the ShowRank edition that was uploaded.
+export async function buildMergedRankVpk({ topbarFile, topbarBytes, showrankFile, showrankBytes }) {
+  const topbar = await validateTopbarArchive(topbarFile, topbarBytes);
+  const showrank = await validateShowrankArchive(showrankFile, showrankBytes);
+  const { files, replacedPaths } = mergeReleaseFiles({
+    topbarFiles: topbar.parsed.files,
+    showrankFiles: showrank.parsed.files,
+    layouts: MERGED_LAYOUTS[showrank.editionId]
   });
-  const { files: outputFiles, overwrittenPaths } = mergeFilesWithPriority(baseParsed.files, payload.files);
-  const bytes = writeVpk(outputFiles);
-
   return {
-    bytes,
-    editionId: payload.editionId,
-    outputFiles,
-    overwrittenPaths,
-    filename: outputFilenameForMergedVpk(payload.editionId),
-    sourceOrigin,
-    validation: {
-      topbar: topbarValidation,
-      showrank: showrankValidation,
-      payload
-    }
+    bytes: writeVpk(files),
+    filename: SHOWRANK_RELEASES[showrank.editionId].outputFileName,
+    editionId: showrank.editionId,
+    files,
+    replacedPaths,
+    topbar: { sha256: topbar.sha256, vpkSha256: topbar.vpkSha256 },
+    showrank: { sha256: showrank.sha256, vpkSha256: showrank.vpkSha256 }
   };
 }

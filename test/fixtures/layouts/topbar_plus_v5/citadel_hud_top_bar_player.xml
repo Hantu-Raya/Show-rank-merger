@@ -4,26 +4,21 @@
 		<include src="s2r://panorama/styles/citadel_base_styles.vcss_c" />
 		<include src="s2r://panorama/styles/hud_common.vcss_c" />
 		<include src="s2r://panorama/styles/citadel_hud_top_bar.vcss_c" />
-		<include src="s2r://panorama/styles/showrank_barebones_topbar.vcss_c" />
 	</styles>
-	<scripts>
-		<include src="s2r://panorama/scripts/unspent.vjs_c" />
-		<include src="s2r://panorama/scripts/showrank_barebones.vjs_c" />
-	</scripts>
-	<CitadelHudTopBarPlayer class="ShowRankBarebonesTopbarPlayer">
+	<CitadelHudTopBarPlayer hittest="false">
 		<GlobalClassListener classes="gDetailView" />
 		<Panel id="PauseIndicator">
 			<Panel id="PauseIcon" />
 			<Label text="#Citadel_Notification_Paused_Title" />
 		</Panel>
 		<Panel class="VoiceBar" />
-		<Panel id="PlayerDetailsContainer" hittest="false" onmouseover="CitadelTopDownScoreboardPlayerHovered();">
+		<Panel id="PlayerDetailsContainer" onmouseover="CitadelTopDownScoreboardPlayerHovered();">
 			<Panel id="KillStreakContainer" hittest="false">
 				<ParticleScenePanel id="KillStreakParticlePanel" particleonly="false" particleName="particles/ui/ui_topbar_killstreak_stylized.vpcf" fov="33" lookAt="0 0 0" squarePixels="true" renderdeferred="true" deferredalpha="true" />
 				<Panel id="KillStreakText">
-					<Label class="KillStreakNum" text="{d:kill_streak}" />
+					<Label class="KillStreakNum" text="#kill_hype_KillStreak_count" />
 					<Panel class="KillStreakLabelContainer">
-						<Label class="KillStreakLabel SpreeText TopLine" html="true" text="#kill_hype_KillStreak" />
+						<Label class="KillStreakLabel SpreeText TopLine" html="true" text="#kill_hype_KillStreak:f" />
 						<Label class="KillStreakLabel FirstBlood TopLine" html="true" text="#kill_hype_FirstBlood" />
 					</Panel>
 				</Panel>
@@ -33,9 +28,8 @@
 			<Panel id="HeroContents" class="HeroContents">
 				<Panel class="SoulsValueContainer">
 					<Panel class="SoulsImage" />
-					<Label id="SoulsValue" class="SoulsValue" html="true" text="{g:citadel_thousands:gold}" />
+					<Label id="SoulsValue" class="SoulsValue" html="true" text="{s:gold}" />
 				</Panel>
-				<Image id="ShowRankBarebonesTopbarRankImage" visible="false" hittest="false" scaling="stretch-to-fit-preserve-aspect" />
 				<Panel id="HeroImageArea">
 					<Panel class="HeroContentsCoinBackground" />
 					<Panel class="HeroIconContainer">
@@ -49,7 +43,9 @@
 						<Label class="HeroLevelLabel" text="{i:player_level}" />
 					</Panel>
 					<Panel id="HealthBar">
-						<ProgressBar id="HeroHealth" min="0" max="1" vertical="true" />
+						<Panel id="HealthBar_Contents">
+							<Panel id="HealthBar_Fill" />
+						</Panel>
 						<Panel id="HealthBar_Border" />
 					</Panel>
 					<Panel class="DeathStatus">
@@ -124,5 +120,11 @@
 			<Panel id="LaneSwapIcon" />
 		</CitadelHudTopBarLaneSwapContainer>
 		<Panel id="SpectatePlayerButtonPanel" onmouseover="$.GetContextPanel().AddClass(&apos;SpectateHover&apos;)" onmouseout="$.GetContextPanel().RemoveClass(&apos;SpectateHover&apos;)" />
+		<Panel class="PlayerHeroReleaseVote">
+			<Panel id="BackgroundTexture" />
+			<Panel id="BackgroundTexture2" />
+			<CitadelHeroImage id="HeroReleaseVoteHeroImage" heroimagestyle="vote_sticker" />
+			<Label class="VotedLabel" text="#Citadel_HeroReleaseVote_Voted" />
+		</Panel>
 	</CitadelHudTopBarPlayer>
 </root>

@@ -2,356 +2,244 @@ import { useEffect, useRef, useState } from "react";
 
 import { buildMergedRankVpk } from "../buildMergedRankVpk.js";
 import { downloadBytes } from "../download.js";
+import { SHOWRANK_RELEASES, TOPBAR_SOURCE } from "../gamebananaSources.js";
 import { buildGitCommitInfoRequestUrl, isGitCommitInfoPayload } from "../gitCommitInfoRefresh.js";
-import { SHOWRANK_RELEASES, SHOWRANK_REQUIRED_VPK_PATHS, TOPBAR_REQUIRED_VPK_PATHS, TOPBAR_SOURCE } from "../gamebananaSources.js";
-import { sha256Hex } from "../sha256.js";
 import { validateShowrankArchive, validateTopbarArchive } from "../sourceValidation.js";
 
-const EMPTY_RESULT = { bytes: null, filename: "", overwrittenPaths: [], fileCount: 0, editionId: "", status: "", error: "" };
-const SHOWRANK_EDITION_LABELS = {
-  alert: "Barebones with missing-enemy alerts",
-  no_missing: "Barebones without missing-enemy alerts"
+const EDITION_NOTES = {
+  alert: "Normal edition, with MISSING tags and the ENEMY MISSING alert",
+  no_missing: "No Missing edition, without MISSING tags or the alert"
 };
 
-function formatBytes(bytes) {
-  const value = Number(bytes || 0);
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / 1024 / 1024).toFixed(2)} MB`;
+const EMPTY_SLOT = { file: null, bytes: null, state: "empty", message: "", editionId: "", sha256: "", vpkSha256: "" };
+const EMPTY_RESULT = { bytes: null, filename: "", fileCount: 0, error: "" };
+
+function formatSize(bytes) {
+  return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function emptySlot() {
-  return {
-    file: null,
-    bytes: null,
-    error: "",
-    status: "",
-    sha256: "",
-    pathCount: 0,
-    parsed: null,
-    editionId: "",
-    isDragging: false
-  };
+function CheckIcon() {
+  return (
+    <svg className="icon" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
-function initialState() {
-  return {
-    topbar: emptySlot(),
-    showrank: emptySlot(),
-    result: EMPTY_RESULT,
-    isBusy: false
-  };
-}
-
-function requiredMessage(topbar, showrank, selectedFileName) {
-  if (!topbar.bytes || !showrank.bytes) {
-    const missing = [];
-    if (!topbar.bytes) missing.push(TOPBAR_SOURCE.expectedFileName);
-    if (!showrank.bytes) missing.push(selectedFileName);
-    return `Upload ${missing.join(" and ")}.`;
-  }
-  if (topbar.error || showrank.error) return "Fix the archive validation error before downloading.";
-  return "Ready to build the selected Barebones edition.";
-}
-
-async function readFileBytes(file) {
-  return new Uint8Array(await file.arrayBuffer());
-}
-
-function patchSlot(setAppState, key, patch) {
-  setAppState((state) => ({
-    ...state,
-    [key]: typeof patch === "function" ? patch(state[key]) : { ...state[key], ...patch }
-  }));
-}
-
-function resetResult(setAppState) {
-  setAppState((state) => ({ ...state, result: EMPTY_RESULT }));
-}
-
-function UploadCard({ title, hint, accept, slot, onFile, children }) {
-  const inputId = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const handleFiles = (files) => {
-    const file = files?.[0];
-    if (file) onFile(file);
+function FileStep({ number, title, inputId, accept, slot, disabled, onFile, children }) {
+  const [isDragging, setIsDragging] = useState(false);
+  const statusId = `${inputId}-status`;
+  const pick = (files) => {
+    if (files?.[0] && !disabled) onFile(files[0]);
   };
 
   return (
-    <section
-      className={`card${slot.isDragging ? " dragging" : ""}`}
-      onDragOver={(event) => { event.preventDefault(); }}
-      onDragEnter={(event) => { event.preventDefault(); onFile(null, true); }}
-      onDragLeave={(event) => { event.preventDefault(); onFile(null, false); }}
+    <li
+      className={`step${isDragging ? " is-dragging" : ""}`}
+      data-state={slot.state}
+      onDragOver={(event) => event.preventDefault()}
+      onDragEnter={(event) => { event.preventDefault(); setIsDragging(true); }}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsDragging(false); }}
       onDrop={(event) => {
         event.preventDefault();
-        onFile(null, false);
-        handleFiles(event.dataTransfer.files);
+        event.stopPropagation();
+        setIsDragging(false);
+        pick(event.dataTransfer.files);
       }}
     >
-      <label htmlFor={inputId}>
-        <span>{title}</span>
-        <small>{hint}</small>
-        <span className="file-picker" aria-hidden="true">
-          <span className="file-picker-button">Browse…</span>
-          <span className={`file-picker-name${slot.file ? "" : " muted"}`}>
-            {slot.file ? slot.file.name : "No file chosen"}
-          </span>
-        </span>
-        <input
-          id={inputId}
-          className="file-input"
-          type="file"
-          accept={accept}
-          onChange={(event) => handleFiles(event.currentTarget.files)}
-        />
-      </label>
-      {children ? <div className="download-help">{children}</div> : null}
-      <div className="status-list" aria-live="polite">
-        {slot.file ? <span>{slot.file.name} ({formatBytes(slot.file.size)})</span> : <span className="muted">No file selected.</span>}
-        {slot.status ? <span>{slot.status}</span> : null}
-        {slot.sha256 ? <span className="success">SHA-256: {slot.sha256}</span> : null}
-        {slot.pathCount ? <span className="success">Required paths OK: {slot.pathCount}</span> : null}
-        {slot.error ? <span className="error">{slot.error}</span> : null}
+      <span className="step-number" aria-hidden="true">{number}</span>
+      <div className="step-body">
+        <h2 id={`${inputId}-title`}>{title}</h2>
+        <div className="step-help">{children}</div>
+        <div className="file-row">
+          <label id={`${inputId}-label`} className={`file-button${disabled ? " is-disabled" : ""}`} htmlFor={inputId}>
+            {slot.file ? "Replace file" : "Choose file"}
+          </label>
+          <input
+            id={inputId}
+            className="visually-hidden"
+            type="file"
+            accept={accept}
+            disabled={disabled}
+            aria-labelledby={`${inputId}-label ${inputId}-title`}
+            aria-describedby={statusId}
+            aria-invalid={slot.state === "error" ? "true" : undefined}
+            onChange={(event) => { pick(event.currentTarget.files); event.currentTarget.value = ""; }}
+          />
+          <span className="file-name">{slot.file ? slot.file.name : "or drop it here"}</span>
+        </div>
+        <p id={statusId} className={`status status-${slot.state}`} role="status" aria-live={slot.state === "error" ? "assertive" : "polite"}>
+          {slot.state === "ok" ? <CheckIcon /> : null}
+          {slot.message}
+        </p>
       </div>
-    </section>
+    </li>
   );
 }
 
 export default function RankMergerIsland({ gitCommitInfo = null }) {
-  const topbarRunRef = useRef(0);
-  const showrankRunRef = useRef(0);
-  const [appState, setAppState] = useState(initialState);
-  const [missingAlerts, setMissingAlerts] = useState(true);
-  const { topbar, showrank, result, isBusy } = appState;
-  const editionId = missingAlerts ? "alert" : "no_missing";
-  const [freshGitCommitInfo, setFreshGitCommitInfo] = useState(null);
-  const showrankRelease = SHOWRANK_RELEASES[editionId];
-  const helperText = requiredMessage(topbar, showrank, showrankRelease.fileName);
-  const canBuild = Boolean(topbar.bytes && showrank.bytes && !topbar.error && !showrank.error && !isBusy);
-  const activeGitCommitInfo = freshGitCommitInfo || gitCommitInfo;
+  const runs = useRef({ topbar: 0, showrank: 0, build: 0 });
+  const [topbar, setTopbar] = useState(EMPTY_SLOT);
+  const [showrank, setShowrank] = useState(EMPTY_SLOT);
+  const [result, setResult] = useState(EMPTY_RESULT);
+  const [isBuilding, setIsBuilding] = useState(false);
+  const [commitInfo, setCommitInfo] = useState(gitCommitInfo);
 
   useEffect(() => {
     let ignore = false;
-    const refreshCommitInfo = async () => {
-      try {
-        const response = await fetch(buildGitCommitInfoRequestUrl(import.meta.env.BASE_URL), { cache: "no-store" });
-        if (!response.ok) return;
-        const nextGitCommitInfo = await response.json();
-        if (!ignore && isGitCommitInfoPayload(nextGitCommitInfo)) {
-          setFreshGitCommitInfo(nextGitCommitInfo);
-        }
-      } catch {
-        // Keep the statically embedded commit info when the refresh endpoint is unavailable.
-      }
-    };
-    refreshCommitInfo();
+    fetch(buildGitCommitInfoRequestUrl(import.meta.env.BASE_URL), { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((info) => { if (!ignore && isGitCommitInfoPayload(info)) setCommitInfo(info); })
+      .catch(() => {});
     return () => { ignore = true; };
   }, []);
 
-  async function handleTopbarFile(file, dragging) {
-    if (!file) {
-      if (typeof dragging === "boolean") patchSlot(setAppState, "topbar", { isDragging: dragging });
-      return;
-    }
-
-    const run = ++topbarRunRef.current;
-    resetResult(setAppState);
-    patchSlot(setAppState, "topbar", { ...emptySlot(), file, status: "Hashing…" });
+  async function check(key, file, setSlot, validate, describe) {
+    const run = ++runs.current[key];
+    runs.current.build += 1;
+    setResult(EMPTY_RESULT);
+    setSlot({ ...EMPTY_SLOT, file, state: "checking", message: "Checking…" });
     try {
-      const bytes = await readFileBytes(file);
-      const sha256 = await sha256Hex(bytes);
-      if (run === topbarRunRef.current) {
-        patchSlot(setAppState, "topbar", { bytes, sha256, status: "Extracting Top Bar Plus VPK…" });
-        const validation = await validateTopbarArchive(file, bytes);
-        if (run === topbarRunRef.current) {
-          patchSlot(setAppState, "topbar", {
-            bytes,
-            sha256: validation.sha256,
-            parsed: validation.parsed,
-            pathCount: TOPBAR_REQUIRED_VPK_PATHS.length,
-            status: "Reading VPK…"
-          });
-        }
-      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const validation = await validate(file, bytes);
+      if (run !== runs.current[key]) return;
+      setSlot({ file, bytes, state: "ok", message: describe(validation), editionId: validation.editionId || "", sha256: validation.sha256, vpkSha256: validation.vpkSha256 });
     } catch (error) {
-      if (run === topbarRunRef.current) {
-        patchSlot(setAppState, "topbar", { bytes: null, error: error?.message || String(error), status: "" });
-      }
+      if (run !== runs.current[key]) return;
+      setSlot({ ...EMPTY_SLOT, file, state: "error", message: error?.message || String(error) });
     }
   }
 
-  async function handleShowrankFile(file, dragging) {
-    if (!file) {
-      if (typeof dragging === "boolean") patchSlot(setAppState, "showrank", { isDragging: dragging });
-      return;
-    }
+  const handleTopbar = (file) => check("topbar", file, setTopbar, validateTopbarArchive, () => `${TOPBAR_SOURCE.label}, verified`);
+  const handleShowrank = (file) => check("showrank", file, setShowrank, validateShowrankArchive, (validation) => `${EDITION_NOTES[validation.editionId]}, verified`);
 
-    const selectedEditionId = editionId;
-    const run = ++showrankRunRef.current;
-    resetResult(setAppState);
-    patchSlot(setAppState, "showrank", { ...emptySlot(), file, status: "Hashing…" });
-    try {
-      const bytes = await readFileBytes(file);
-      const sha256 = await sha256Hex(bytes);
-      if (run === showrankRunRef.current) {
-        patchSlot(setAppState, "showrank", { bytes, sha256, status: "Extracting ShowRank VPK…" });
-        const validation = await validateShowrankArchive(file, bytes, selectedEditionId);
-        if (run === showrankRunRef.current) {
-          patchSlot(setAppState, "showrank", {
-            bytes,
-            sha256: validation.sha256,
-            parsed: validation.parsed,
-            editionId: validation.editionId,
-            pathCount: SHOWRANK_REQUIRED_VPK_PATHS.length,
-            status: `Validated ${SHOWRANK_EDITION_LABELS[validation.editionId]}`
-          });
-        }
-      }
-    } catch (error) {
-      if (run === showrankRunRef.current) {
-        patchSlot(setAppState, "showrank", { bytes: null, error: error?.message || String(error), status: "" });
-      }
+  // Dropping files anywhere on the page sends a .zip to step 1 and a .7z to step 2.
+  function handlePageDrop(event) {
+    event.preventDefault();
+    if (isBuilding) return;
+    for (const file of event.dataTransfer.files) {
+      const name = file.name.toLowerCase();
+      if (name.endsWith(".zip")) handleTopbar(file);
+      else if (name.endsWith(".7z")) handleShowrank(file);
     }
   }
 
-  function handleMissingAlertsChange(event) {
-    if (isBusy) return;
-    ++showrankRunRef.current;
-    setMissingAlerts(event.currentTarget.checked);
-    setAppState((state) => ({ ...state, showrank: emptySlot(), result: EMPTY_RESULT }));
-  }
+  const ready = topbar.state === "ok" && showrank.state === "ok";
+  const outputName = SHOWRANK_RELEASES[showrank.editionId]?.outputFileName || SHOWRANK_RELEASES.alert.outputFileName;
+
   async function handleBuild() {
-    if (!canBuild) return;
-    if (result.bytes && result.filename) {
+    if (!ready || isBuilding) return;
+    if (result.bytes) {
       downloadBytes(result.filename, result.bytes);
       return;
     }
-    const buildEditionId = editionId;
-    setAppState((state) => ({ ...state, isBusy: true, result: { ...EMPTY_RESULT, status: "Fetching the current standalone Barebones source and compiling with Closure ADVANCED…" } }));
+    const run = ++runs.current.build;
+    setIsBuilding(true);
     try {
       const merged = await buildMergedRankVpk({
-        topbarArchiveBytes: topbar.bytes,
-        showrankArchiveBytes: showrank.bytes,
-        editionId: buildEditionId
+        topbarFile: topbar.file,
+        topbarBytes: topbar.bytes,
+        showrankFile: showrank.file,
+        showrankBytes: showrank.bytes
       });
+      if (run !== runs.current.build) return;
       downloadBytes(merged.filename, merged.bytes);
-      setAppState((state) => ({
-        ...state,
-        result: {
-          bytes: merged.bytes,
-          filename: merged.filename,
-          overwrittenPaths: merged.overwrittenPaths,
-          fileCount: merged.outputFiles.length,
-          editionId: merged.editionId,
-          status: `Built and downloaded ${merged.outputFiles.length} files from ${merged.sourceOrigin} standalone source with local Closure ADVANCED compilation (${formatBytes(merged.bytes.byteLength)}).`,
-          error: ""
-        }
-      }));
+      setResult({ bytes: merged.bytes, filename: merged.filename, fileCount: merged.files.length, error: "" });
     } catch (error) {
-      setAppState((state) => ({ ...state, result: { ...EMPTY_RESULT, error: error?.message || String(error) } }));
+      if (run === runs.current.build) setResult({ ...EMPTY_RESULT, error: error?.message || String(error) });
     } finally {
-      setAppState((state) => ({ ...state, isBusy: false }));
+      setIsBuilding(false);
     }
   }
 
+  let buildNote = "Add both files to build.";
+  if (isBuilding) buildNote = "Building…";
+  else if (result.error) buildNote = result.error;
+  else if (result.bytes) buildNote = `Downloaded ${result.filename} (${formatSize(result.bytes.byteLength)}).`;
+  else if (ready) buildNote = `Ready. You'll get ${outputName}.`;
+
   return (
-    <div className="rank-merger">
-      <header className="header">
-        <div className="header-main">
-          <div className="title-row">
-            <h1>Topbar Rank VPK Merger</h1>
-            {activeGitCommitInfo?.url && activeGitCommitInfo?.shortHash ? (
-              <a
-                className="commit-version-link"
-                href={activeGitCommitInfo.url}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={activeGitCommitInfo.title || `Latest commit ${activeGitCommitInfo.shortHash}`}
-                title={activeGitCommitInfo.title || `Latest commit ${activeGitCommitInfo.shortHash}`}
-              >
-                <span aria-hidden="true">⌁</span>
-                <span>Commit</span>
-                <code>{activeGitCommitInfo.shortHash}</code>
-              </a>
-            ) : null}
-          </div>
-          <p>Build a current Topbar Rank Barebones VPK from the exact Top Bar Plus V40D archive and one exact 8/27 ShowRank Barebones archive. Files stay on your machine.</p>
-        </div>
-        <div className="header-actions" aria-label="Project support actions">
-          <a className="support-button" href="https://ko-fi.com/hantuaraya" target="_blank" rel="noreferrer" aria-label="Donate on Ko-fi">
-            <span aria-hidden="true">♥</span>
-            <span>Donate</span>
-          </a>
-          <a className="support-button" href="https://github.com/Hantu-Raya/Show-rank-merger" target="_blank" rel="noreferrer" aria-label="Star the repository on GitHub">
-            <span aria-hidden="true">★</span>
-            <span>Star repo</span>
-          </a>
-        </div>
+    <div className="page" onDragOver={(event) => event.preventDefault()} onDrop={handlePageDrop}>
+      <header className="intro">
+        <p className="eyebrow">Deadlock mod tool</p>
+        <h1>ShowRank + Top Bar Plus</h1>
+        <p className="lede">
+          ShowRank and Top Bar Plus replace the same two top bar layouts, so with both installed one of them loses its
+          top bar changes. This page combines ShowRank v1.0.0 and Top Bar Plus v5 into one VPK that keeps both. Your files
+          are processed in your browser and are not uploaded.
+        </p>
       </header>
 
-      <div className="grid">
-        <UploadCard
-          title={`Required: ${TOPBAR_SOURCE.expectedFileName}`}
-          hint={<>Exact current GameBanana <a href="https://gamebanana.com/mods/623518" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Top Bar Plus</a> archive. Filename is only a hint; exact archive and embedded VPK SHA-256 identities decide.</>}
-          accept=".zip,application/zip"
-          slot={topbar}
-          onFile={handleTopbarFile}
-        >
-          <p>Do not have the file?</p>
-          <a href={TOPBAR_SOURCE.modUrl} target="_blank" rel="noreferrer">
-            Download Top Bar Plus
-          </a>
-        </UploadCard>
-        <UploadCard
-          key={editionId}
-          title={`Required: ${showrankRelease.fileName}`}
-          hint={<>Exact current <a href="https://gamebanana.com/mods/681028" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>ShowRank Barebones</a> archive. Archive and embedded VPK SHA-256 identities must match the selected edition.</>}
-          accept=".7z,application/x-7z-compressed"
-          slot={showrank}
-          onFile={handleShowrankFile}
-        >
-          <label className="edition-toggle" htmlFor="missing-alerts">Missing-enemy alerts
-            <input
-              id="missing-alerts"
-              type="checkbox"
-              checked={missingAlerts}
-              disabled={isBusy}
-              onChange={handleMissingAlertsChange}
-            />
-          </label>
-          <p className="helper">On requires the alert archive. Off requires the no-missing archive. Changing editions clears the selected ShowRank file.</p>
-          <a href={showrankRelease.modUrl} target="_blank" rel="noreferrer">
-            Download {showrankRelease.fileName} from GameBanana
-          </a>
-        </UploadCard>
-      </div>
+      <ol className="steps">
+        <FileStep number="1" title="Top Bar Plus v5" inputId="topbar-file" accept=".zip,application/zip" slot={topbar} disabled={isBuilding} onFile={handleTopbar}>
+          <p>
+            Download <a href={TOPBAR_SOURCE.modUrl} target="_blank" rel="noreferrer"><code>{TOPBAR_SOURCE.fileName}</code></a> from
+            GameBanana and add it here unchanged.
+          </p>
+        </FileStep>
 
-      <section className="result-panel" aria-live="polite">
-        <h2>Result</h2>
-        <div className="result-grid">
-          <span>Top Bar SHA-256</span><strong>{topbar.sha256 || "Not validated"}</strong>
-          <span>ShowRank SHA-256</span><strong>{showrank.sha256 || "Not validated"}</strong>
-          <span>ShowRank edition</span><strong>{SHOWRANK_EDITION_LABELS[showrank.editionId || result.editionId] || SHOWRANK_EDITION_LABELS[editionId]}</strong>
-          <span>Output filename</span><strong>{result.filename || (missingAlerts ? "topbar_rank_barebones_dir.vpk" : "topbar_rank_barebones_no_missing_dir.vpk")}</strong>
-          <span>Generated files</span><strong>{result.fileCount || "Not built"}</strong>
-        </div>
-        {result.status ? <p className="success">{result.status}</p> : <p className="helper">{helperText}</p>}
-        {result.error ? <p className="error">{result.error}</p> : null}
-        <div>
-          <button className="primary" type="button" disabled={!canBuild} onClick={handleBuild}>
-            {isBusy ? "Building…" : result.bytes ? "Download VPK again" : "Build and download VPK"}
-          </button>
-          {!canBuild ? <p className="helper">{helperText}</p> : null}
-        </div>
-      </section>
+        <FileStep number="2" title="ShowRank v1.0.0" inputId="showrank-file" accept=".7z,application/x-7z-compressed" slot={showrank} disabled={isBuilding} onFile={handleShowrank}>
+          <p>Add one of the two downloads. The result matches the one you choose.</p>
+          <ul className="choices">
+            <li>
+              <a href={SHOWRANK_RELEASES.alert.modUrl} target="_blank" rel="noreferrer"><code>{SHOWRANK_RELEASES.alert.fileName}</code></a>
+              <span>Normal: MISSING tags and the ENEMY MISSING alert for enemies who disappear early in a match.</span>
+            </li>
+            <li>
+              <a href={SHOWRANK_RELEASES.no_missing.modUrl} target="_blank" rel="noreferrer"><code>{SHOWRANK_RELEASES.no_missing.fileName}</code></a>
+              <span>No Missing: everything else, without those alerts.</span>
+            </li>
+          </ul>
+        </FileStep>
 
-      <footer className="page-footer" aria-label="Project notices">
+        <li className="step" data-state={result.bytes ? "ok" : result.error ? "error" : "empty"}>
+          <span className="step-number" aria-hidden="true">3</span>
+          <div className="step-body">
+            <h2>Build and install</h2>
+            <div className="file-row">
+              <button className="primary" type="button" disabled={!ready || isBuilding} aria-describedby="build-status" onClick={handleBuild}>
+                {isBuilding ? "Building…" : result.bytes ? "Download again" : "Build VPK"}
+              </button>
+            </div>
+            <p id="build-status" className={`status ${result.error ? "status-error" : result.bytes ? "status-ok" : ""}`} role="status" aria-live="polite">
+              {result.bytes ? <CheckIcon /> : null}
+              {buildNote}
+            </p>
+            <p className="step-help">
+              Remove the separate ShowRank and Top Bar Plus VPKs from <code>Deadlock\game\citadel\addons</code>, then put
+              the new file there with a free pak name, for example <code>pak89_dir.vpk</code>.
+            </p>
+          </div>
+        </li>
+      </ol>
+
+      <details className="details">
+        <summary>File details</summary>
+        <dl>
+          <dt>Top Bar Plus archive</dt><dd><code>{topbar.sha256 || "not added"}</code></dd>
+          <dt>Top Bar Plus VPK</dt><dd><code>{topbar.vpkSha256 || "not added"}</code></dd>
+          <dt>ShowRank archive</dt><dd><code>{showrank.sha256 || "not added"}</code></dd>
+          <dt>ShowRank VPK</dt><dd><code>{showrank.vpkSha256 || "not added"}</code></dd>
+          <dt>Output</dt><dd><code>{result.bytes ? `${result.filename}, ${result.fileCount} files` : "not built"}</code></dd>
+        </dl>
         <p>
-          Unofficial fan-made tool. Not affiliated with Valve. Files run locally and are not uploaded. Built by{" "}
-          <a href="https://github.com/Hantu-Raya" target="_blank" rel="noreferrer">Hantu-Raya</a>.
-          {" "}Top Bar Plus by{" "}
-          <a href="https://gamebanana.com/members/2408486" target="_blank" rel="noreferrer">bonclide</a>.
-          {" "}Apache-2.0 licensed; see LICENSE and NOTICE.
+          Every file from both mods is copied unchanged, except <code>citadel_hud_top_bar</code> and{" "}
+          <code>citadel_hud_top_bar_player</code>, which both mods replace. Those two come from a merged layout with both mods' additions.
+        </p>
+      </details>
+
+      <footer className="footer">
+        <p>
+          Top Bar Plus by <a href="https://gamebanana.com/members/2408486" target="_blank" rel="noreferrer">bonclide</a>.
+          {" "}ShowRank and this page by <a href="https://github.com/Hantu-Raya" target="_blank" rel="noreferrer">Hantu-Raya</a>.
+          {" "}Not affiliated with Valve.
+        </p>
+        <p>
+          <a href="https://github.com/Hantu-Raya/Show-rank-merger" target="_blank" rel="noreferrer">Source</a>
+          {" · "}<a href="https://ko-fi.com/hantuaraya" target="_blank" rel="noreferrer">Ko-fi</a>
+          {commitInfo?.url && commitInfo?.shortHash ? (
+            <>{" · "}<a href={commitInfo.url} target="_blank" rel="noreferrer" title={commitInfo.title || undefined}>Build <code>{commitInfo.shortHash.slice(0, 7)}</code></a></>
+          ) : null}
         </p>
       </footer>
     </div>

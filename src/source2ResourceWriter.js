@@ -14,14 +14,14 @@ function writeFourCc(bytes, offset, value) {
   }
 }
 
-function createResourceBytes(payloadSize, dataOffset, resourceVersion = 0) {
+function createResourceBytes(payloadSize, dataOffset) {
   const fileSize = dataOffset + payloadSize;
   const bytes = new Uint8Array(fileSize);
   const view = new DataView(bytes.buffer);
 
   view.setUint32(0, fileSize, true);
   view.setUint16(4, 12, true);
-  view.setUint16(6, resourceVersion, true);
+  view.setUint16(6, 0, true);
   view.setUint32(8, 8, true);
   view.setUint32(12, 1, true);
 
@@ -32,16 +32,8 @@ function createResourceBytes(payloadSize, dataOffset, resourceVersion = 0) {
   return { bytes, view };
 }
 
-export function compileTextResource(sourceText, { resourceVersion = 0 } = {}) {
-  const sourceBytes = new TextEncoder().encode(String(sourceText ?? ""));
-  const dataOffset = align(HEADER_SIZE + BLOCK_ENTRY_SIZE, DATA_ALIGNMENT);
-  const { bytes } = createResourceBytes(sourceBytes.byteLength, dataOffset, resourceVersion);
-  bytes.set(sourceBytes, dataOffset);
-
-  return bytes;
-}
-
-function compilePanoramaResource(sourceText) {
+// Panorama layout resource: one DATA block holding the CRC32 of the XML, two zero bytes, then the XML text.
+export function compilePanoramaLayoutResource(sourceText) {
   const sourceBytes = new TextEncoder().encode(String(sourceText ?? ""));
   const payloadSize = 4 + 2 + sourceBytes.byteLength;
   const dataOffset = align(HEADER_SIZE + BLOCK_ENTRY_SIZE, DATA_ALIGNMENT);
@@ -52,12 +44,4 @@ function compilePanoramaResource(sourceText) {
   bytes.set(sourceBytes, dataOffset + 6);
 
   return bytes;
-}
-
-export function compilePanoramaLayoutResource(sourceText) {
-  return compilePanoramaResource(sourceText);
-}
-
-export function compilePanoramaStyleResource(sourceText) {
-  return compilePanoramaResource(sourceText);
 }

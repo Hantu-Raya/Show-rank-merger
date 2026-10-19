@@ -2,42 +2,43 @@
 
 ## Product contract
 
-This static Astro + React app builds one mutually exclusive Topbar Rank Barebones edition from two required inputs: the exact Top Bar Plus v40d archive and the exact selected ShowRank 8/27 archive.
+This static Astro + React app merges two exact GameBanana downloads into one Deadlock VPK, entirely in the browser:
 
-- `alert` requires `showrank_barebones_8_27.7z`, emits `topbar_rank_barebones_dir.vpk`, and shows missing-enemy alerts during the first eight minutes when native health is hidden.
-- `no_missing` requires `showrank_barebones_no_missing_8_27.7z`, emits `topbar_rank_barebones_no_missing_dir.vpk`, and contains no missing-enemy runtime, XML, CSS, or clock-polling markers.
-- Missing-enemy alerts never mean missing rank data or missing API data.
-- Each edition contains exactly the 23 paths in `src/topbarRankSourceManifest.js`.
+- Top Bar Plus v5: `v5_top_bar_plus.zip` (file 1834013).
+- ShowRank v1.0.0, one of `showrank_barebones_v100.7z` (file 1855939, normal) or `showrank_barebones_no_missing_v100.7z` (file 1855938, no MISSING tags or ENEMY MISSING alert).
+
+The edition is detected from the ShowRank archive hash; there is no edition toggle. Output is `topbar_rank_barebones_dir.vpk` (normal) or `topbar_rank_barebones_no_missing_dir.vpk`. "Missing" always means missing enemies, never missing rank or API data.
 
 ## Build flow
 
-1. `src/components/RankMergerIsland.jsx` owns both required uploads, edition selection, and download state. Changing editions clears the ShowRank upload. The edition control is disabled while a build is in flight.
-2. `src/sourceValidation.js` checks both archives by exact outer size/SHA-256, embedded VPK SHA-256, and required paths from `src/gamebananaSources.js`.
-3. `src/topbarRankSourceFetch.js` fetches the selected edition and its three composition fragments, then applies each placeholder exactly once. Unresolved seams fail closed.
-4. `src/buildMergedRankVpk.js` uses the composed latest source or the selected composed fallback from `src/payload/topbarRankSources.generated.js`.
-5. `src/topbarRankPayload.js` validates identity, rank-image URL, profile/profile-stats APIs, edition markers, and Closure output before compiling Source 2 resources.
-6. `src/rankMerge.js` gives generated payload paths priority; `src/vpkWriter.js` writes the final VPK.
+1. `src/sourceValidation.js` checks each archive by exact size and SHA-256, extracts the pinned VPK member with 7z-wasm, checks the VPK SHA-256, and requires the exact path inventory from `src/gamebananaSources.js`.
+2. `src/rankMerge.js` copies every resource from both VPKs byte for byte. The only paths both mods may share are the two top bar layouts; any other shared path, a missing shared layout, or a duplicate path fails the merge.
+3. The two shared layouts come from `src/mergedLayouts.js` (one pair per edition), compiled by `src/source2ResourceWriter.js`.
+4. `src/vpkWriter.js` writes the output: 22 entries per edition.
 
-## Source and generated files
+There is no source compilation, Closure step, or network fetch of mod source. Do not add one.
 
-- `src/topbarRankSourceManifest.js` — edition IDs, 23-path manifest, and composition fragment paths.
-- `src/topbarRankSourceFetch.js` — browser-safe latest fetch and exact-once composition.
-- `src/payload/topbar_rank/<edition>/` — checked-in composed fallback source; keep both editions complete.
-- `src/payload/topbarRankSources.generated.js` — generated map consumed by payload building.
-- `scripts/sync-topbar-rank-payload.mjs` — refreshes both editions, removes stale flat material, composes sources, and regenerates the map.
-- `src/gamebananaSources.js` - canonical Top Bar Plus v40d and ShowRank 8/27 metadata plus required VPK paths.
-- `src/sourceValidation.js` - exact archive and embedded VPK identity checks for both required uploads.
-- `test/*.test.js` — focused contract tests.
+## Merged layouts
+
+`src/mergedLayouts.js` holds Top Bar Plus v5's layout plus exactly the lines ShowRank v1.0.0 adds to the stock layout. `test/fixtures/layouts/` holds those layouts decompiled (VRF 19.2) from the pinned VPKs. `test/mergedLayouts.test.js` requires every line of both mods, in order and at the same depth, and nothing that neither mod has.
+
+When either mod releases a new version: pin the new file in `src/gamebananaSources.js`, refresh the fixtures from the new VPKs, rebuild the merged layouts from them, and keep the tests passing. Support one version pair at a time.
 
 ## Editing rules
 
-- Preserve user-authored dirty changes and keep processing browser-safe. Do not add a server, native compiler, or compatibility alias.
-- Keep latest and fallback source composition identical. Validate every source path before compilation.
-- Keep viewed-profile identity resolution shared by Topbar Rank and Profile Stats Community. Keep Profile Stats Community Community-vs-Stats behavior and current Player Profile APIs intact.
-- Keep output names underscore-normalized and metadata hashes synchronized with `src/gamebananaSources.js`.
-- Treat `src/payload/topbar_rank/<edition>/` and the generated map as synchronized output; refresh them with the sync script rather than hand-editing one side.
-- Do not edit ignored build output or dependencies.
+- Keep processing browser-only. Do not add a server or upload.
+- Never edit the decompiled fixtures by hand; regenerate them from the pinned VPKs.
+- Keep output file names and pinned hashes in `src/gamebananaSources.js` in sync with the tests.
+- Do not edit ignored build output (`dist/`, `tmp-smoke/`) or dependencies.
 
 ## Verification
 
-Use the focused Node tests for source, payload, merge, and archive contracts. The manual live fixture verifier is `scripts/verify-gamebanana-fixtures.mjs`. For UI changes, exercise the deployed surface and confirm archive upload, edition selection, build, and download behavior.
+```bash
+npm test                       # contracts: pins, inventories, merge policy, merged layouts
+npm run build
+npm run verify:release         # E2E: builds both editions from the real downloads into tmp-smoke/
+```
+
+`verify:release` downloads from GameBanana unless `TOPBAR_ARCHIVE`, `SHOWRANK_ARCHIVE` and `SHOWRANK_NO_MISSING_ARCHIVE` point to local copies. It checks that 20 resources are byte-identical to the sources and that the two layouts are the merged ones, then writes both VPKs and `report.json`.
+
+For UI changes, run the built site (`npx astro preview`) and confirm both uploads, wrong-file errors, the detected edition, build, and download. Whether the game loads the merged VPK is only proven in game.
